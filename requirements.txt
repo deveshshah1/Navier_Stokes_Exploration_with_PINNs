@@ -1,0 +1,53 @@
+############# Creating constant UV env between different repos #############
+# export ENV_NAME=pytorch_260
+# uv venv ./Programming/envs/$ENV_NAME --python 3.11
+# source ./Programming/envs/$ENV_NAME/bin/activate
+# uv pip install -r requirements.txt
+# python -m ipykernel install --user --name=$ENV_NAME --display-name "$ENV_NAME"
+##############################################################################
+
+# Core ML
+# --extra-index-url https://download.pytorch.org/whl/cu121 # for CUDA enabled devices
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+pytorch-lightning==2.5.1
+torchmetrics==1.7.2
+
+# Data
+numpy==1.24.3
+pandas==1.5.3
+scikit-learn==1.8.0
+scipy==1.10.1
+
+# Vision / Image
+pillow==10.4.0
+opencv-python==4.11.0.86
+
+# Dimensionality Reduction
+umap-learn==0.5.11
+
+# Visualization
+matplotlib==3.7.1
+seaborn==0.12.2
+
+# Experiment Tracking
+wandb==0.22.0
+
+# Transformers / HuggingFace
+transformers==4.45.2
+datasets==2.19.1
+huggingface-hub==0.29.2
+tokenizers==0.20.1
+safetensors==0.5.3
+
+# Utilities
+pyyaml==6.0.2
+tqdm==4.66.1
+requests==2.29.0
+filelock==3.9.0
+
+# Jupyter
+jupyterlab==3.5.3
+ipywidgets==8.0.4
+ipykernel==6.19.2
