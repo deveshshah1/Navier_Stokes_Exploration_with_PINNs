@@ -1,28 +1,40 @@
 import torch
 import torch.nn as nn
-from torchvision.models import resnet18, ResNet18_Weights
-
 
 class BaselineModel(nn.Module):
-    def __init__(self, num_classes=5):
-        super(BaselineModel, self).__init__()
-        pretrained_model = resnet18(weights=ResNet18_Weights.DEFAULT)
-        self.backbone = nn.Sequential(*list(pretrained_model.children())[:-1])
-        num_features = pretrained_model.fc.in_features
-        self.classifier = nn.Linear(num_features, num_classes)
+    def __init__(self, hidden_layers=6, hidden_width=64):
+        super().__init__()
+        layers = [nn.Linear(3, hidden_width), nn.Tanh()]
+        for _ in range(hidden_layers - 1):
+            layers.append(nn.Linear(hidden_width, hidden_width))
+            layers.append(nn.Tanh())
+        layers.append(nn.Linear(hidden_width, 3))
 
-    def forward(self, x):
-        x = self.backbone(x)
-        emb = torch.flatten(x, 1)
-        out = self.classifier(emb)
-        return emb, out
+        self.net = nn.Sequential(*layers)
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.net:
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+    def forward(self, x, y, t):
+        input = torch.stack([x, y, t], dim=-1)  # Shape: (batch_size, 3)
+        output = self.net(input)  # Shape: (batch_size, 3)
+        u, v, p = output[:, 0], output[:, 1], output[:, 2]  # Split into components
+        return u, v, p
 
 
 if __name__ == "__main__":
     model = BaselineModel()
     print(model)
 
-    sample_input = torch.randn(2, 3, 224, 224)  # Example input tensor
-    emb, out = model(sample_input)
-    print("Embedding shape:", emb.shape) # Should be (2, 512)
-    print("Output shape:", out.shape) # Should be (2, 5)
+    x = torch.randn(2)  # Example input tensor for x
+    y = torch.randn(2)  # Example input tensor for y
+    t = torch.randn(2)  # Example input tensor for t
+    u, v, p = model(x, y, t)
+    print("u shape:", u.shape) # Should be (2,)
+    print("v shape:", v.shape) # Should be (2,)
+    print("p shape:", p.shape) # Should be (2,)
