@@ -1,0 +1,31 @@
+dataset_configs:
+  desc: Ground Truth Dataset Configurations
+  value:
+    base_dataset_path: "./dataset/" # LOCAL
+    # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
+    cylinder_Re20: "cylinder_Re20_groundtruth.parquet"
+    cylinder_Re100: "cylinder_Re100_groundtruth.parquet"
+
+training_hyperparameters:
+  desc: Training Hyperparameters
+  value:
+    batch_size: 32
+    num_epochs: 25
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    warmup_steps: 4000
+
+experiment_details:
+  desc: Experiment Details
+  value:
+    model_dir: "./trained_models/"
+    experiment_name: "re20_baseline"
+    use_wandb: True
+
+wandb_config:
+  desc: Weights and Biases Configuration
+  value:
+    project: "PINNs_Modeling"
+    entity: "deveshshah-university-of-michigan"
+    mode: "online"
+    config: {}
