@@ -15,6 +15,12 @@ training_hyperparameters:
     weight_decay: 0.0001
     warmup_steps: 4000
 
+model_architecture_hyperparameters:
+  desc: Model Architecture Hyperparameters
+  value:
+    hidden_layers: 6
+    hidden_width: 64
+
 experiment_details:
   desc: Experiment Details
   value:

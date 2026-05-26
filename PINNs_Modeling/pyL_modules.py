@@ -68,8 +68,7 @@ class PyLModel(pl.LightningModule):
         self.LABEL_ENCODING = config_training["plant_label_encoding"]
         self.LABEL_DECODING = {v: k for k, v in self.LABEL_ENCODING.items()}
 
-        num_classes = len(self.LABEL_ENCODING)
-        self.model = BaselineModel(num_classes=num_classes)
+        self.model = BaselineModel(**config_training["model_architecture_hyperparameters"])
         self.criterion = torch.nn.CrossEntropyLoss()
 
         self.val_acc = Accuracy(
