@@ -11,7 +11,6 @@ with open("./configs/config_training.yaml", "r") as f:
 # Schäfer-Turek geometry constants
 CYL_CX, CYL_CY, CYL_R = 0.2, 0.2, 0.05  # cylinder center and radius
 H = 0.41  # channel height
-U_MEAN = 0.2  # mean inlet velocity
 
 
 class Cylinder2DDataset(torch.utils.data.Dataset):
@@ -33,6 +32,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
             0.0,
             10.0,
         ),  # (x_min, x_max, y_min, y_max, t_min, t_max)
+        U_mean: float = 0.2, # mean inlet velocity (for ICs and inlet BC)
         steps_per_epoch: int = 100,
     ):
         super().__init__()
@@ -43,6 +43,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         self.steps_per_epoch = steps_per_epoch
 
         self.x_min, self.x_max, self.y_min, self.y_max, self.t_min, self.t_max = domain
+        self.U_mean = U_mean
 
     def __len__(self):
         return self.steps_per_epoch
@@ -53,9 +54,9 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         mask = ~inside
         return (x[mask], y[mask]) + tuple(t[mask] for t in rest)
 
-    def inlet_u(self, y, H=H, U_mean=U_MEAN):
+    def inlet_u(self, y, H=H):
         """Schäfer-Turek parabolic inlet: u = 6 U_mean y(H-y) / H²"""
-        return 6.0 * U_mean * y * (H - y) / H**2
+        return 6.0 * self.U_mean * y * (H - y) / H**2
 
     def make_collocation_points(self):
         """Uniform random points over the fluid domain"""
@@ -120,10 +121,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         t = torch.full((self.num_ic_points,), self.t_min)
         x, y, t = self._remove_cylinder_interior(x, y, t)
 
-        ic_u = torch.zeros_like(x)
-        ic_v = torch.zeros_like(x)
-
-        return x, y, t, ic_u, ic_v
+        return x, y, t
 
     def __getitem__(self, idx):
         return {
@@ -157,9 +155,9 @@ if __name__ == "__main__":
     for name, pts in batch["boundary"].items():
         print(f"BC {name:<8}: {pts[0].shape} points")
 
-    x_ic, y_ic, t_ic, u_ic, v_ic = batch["ic"]
+    x_ic, y_ic, t_ic = batch["ic"]
     print(
-        f"IC          : {x_ic.shape} points  (u={u_ic.unique().tolist()}, v={v_ic.unique().tolist()})"
+        f"IC          : {x_ic.shape} points  (t={t_ic.unique().tolist()})"
     )
 
     # plot collocation + BC points

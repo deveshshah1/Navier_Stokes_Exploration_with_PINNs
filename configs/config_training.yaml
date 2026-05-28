@@ -5,15 +5,34 @@ dataset_configs:
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
     cylinder_Re20: "cylinder_Re20_groundtruth.parquet"
     cylinder_Re100: "cylinder_Re100_groundtruth.parquet"
+    num_collocation_points: 2000
+    num_bc_points: 200
+    num_noslip_points: 300
+    num_ic_points: 500
+    U_mean: 0.2
+    domain_bounds:
+      x_min: 0.0
+      x_max: 2.2
+      y_min: 0.0
+      y_max: 0.41
+      t_min: 0.0
+      t_max: 10.0
+    steps_per_epoch: 100
+    reynolds_number: 20
 
 training_hyperparameters:
   desc: Training Hyperparameters
   value:
-    batch_size: 32
-    num_epochs: 25
+    batch_size: 1
+    num_epochs: 1000
     learning_rate: 0.001
-    weight_decay: 0.0001
-    warmup_steps: 4000
+
+loss_weights:
+  desc: Loss Weights for Different Components
+  value:
+    lambda_physics: 1.0
+    lambda_bc: 1.0
+    lambda_ic: 1.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters

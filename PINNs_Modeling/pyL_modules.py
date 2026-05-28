@@ -1,13 +1,9 @@
 import yaml
 import torch
 import pytorch_lightning as pl
-
-from torch.utils.data import DataLoader, WeightedRandomSampler
-from torchmetrics import Accuracy
-
-from custom_dataset import PlantPathologyDataset
+from torch.utils.data import DataLoader
+from custom_dataset import Cylinder2DDataset
 from model import BaselineModel
-from utils.custom_scheduluer import NoamScheduler
 
 
 # Global config
@@ -19,45 +15,29 @@ with open("./configs/config_training.yaml", "r") as file:
 class PyLDataModule(pl.LightningDataModule):
     def __init__(self):
         super().__init__()
-        self.base_dataset_path = config_training["dataset_configs"]["base_dataset_path"]
-        self.dataset_name = config_training["dataset_configs"]["plantpathology"]
+        self.dataset_configs = config_training["dataset_configs"]
+        bounds = self.dataset_configs.pop("domain_bounds")
+        self.dataset_configs["domain"] = (
+            bounds["x_min"],
+            bounds["x_max"],
+            bounds["y_min"],
+            bounds["y_max"],
+            bounds["t_min"],
+            bounds["t_max"],
+        )
 
     def setup(self, stage=None):
-        self.train_set = PlantPathologyDataset(
-            stage="train", base_dataset_path=self.base_dataset_path, dataset_name=self.dataset_name
-        )
-        self.val_set = PlantPathologyDataset(
-            stage="val", base_dataset_path=self.base_dataset_path, dataset_name=self.dataset_name
-        )
+        self.train_set = Cylinder2DDataset(**self.dataset_configs)
 
     def train_dataloader(self):
-        sampler = WeightedRandomSampler(
-            weights=self.train_set.get_class_weights(),
-            num_samples=len(self.train_set),
-            replacement=True,
-        )
-
         return DataLoader(
             self.train_set,
             batch_size=config_training["training_hyperparameters"]["batch_size"],
-            sampler=sampler,
             pin_memory=True,
             drop_last=True,
             num_workers=4,
             persistent_workers=True,
         )
-
-    def val_dataloader(self):
-        return DataLoader(
-            self.val_set,
-            batch_size=config_training["training_hyperparameters"]["batch_size"],
-            shuffle=False,
-            pin_memory=True,
-            drop_last=False,
-            num_workers=4,
-            persistent_workers=True,
-        )
-
 
 class PyLModel(pl.LightningModule):
     def __init__(self, wandb_logger=None):
@@ -65,68 +45,85 @@ class PyLModel(pl.LightningModule):
         self.save_hyperparameters()
         self.wandb_logger = wandb_logger
 
-        self.LABEL_ENCODING = config_training["plant_label_encoding"]
-        self.LABEL_DECODING = {v: k for k, v in self.LABEL_ENCODING.items()}
-
         self.model = BaselineModel(**config_training["model_architecture_hyperparameters"])
-        self.criterion = torch.nn.CrossEntropyLoss()
+        self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
+        self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
+        self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
+        self.Re = config_training["dataset_configs"]["reynolds_number"]
 
-        self.val_acc = Accuracy(
-            task="multiclass", num_classes=num_classes, average="micro"
-        )
-        self.val_balanced_acc = Accuracy(
-            task="multiclass", num_classes=num_classes, average="macro"
-        )
-        self.val_per_class_acc = Accuracy(
-            task="multiclass", num_classes=num_classes, average="none"
-        )
+    def bc_loss(self, bc_points):
+        # inlet (ui = Schäfer-Turek parabolic, vi = 0)
+        xi, yi, ti = bc_points["inlet"]
+        ui_pred, vi_pred, _ = self.model(xi, yi, ti)
+        ui_true = self.train_set.inlet_u(yi)
+        inlet_loss = torch.mean((ui_pred - ui_true) ** 2) + torch.mean(vi_pred**2)
+
+        # outlet (po = 0)
+        xo, yo, to = bc_points["outlet"]
+        _, _, po_pred = self.model(xo, yo, to)
+        outlet_loss = torch.mean(po_pred**2)
+
+        # no-slip walls (ui = vi = 0)
+        xw, yw, tw = bc_points["noslip"]
+        ui_pred_w, vi_pred_w, _ = self.model(xw, yw, tw)
+        noslip_loss = torch.mean(ui_pred_w**2) + torch.mean(vi_pred_w**2)
+
+        return (inlet_loss + outlet_loss + noslip_loss)
+    
+    def ic_loss(self, ic_points):
+        # initial condition: ui = vi = 0 at t=0
+        x, y, t = ic_points
+        ui_pred, vi_pred, _ = self.model(x, y, t)
+        ic_loss = torch.mean(ui_pred**2) + torch.mean(vi_pred**2)
+        return ic_loss
+    
+    def physics_loss(self, collocation_points):
+        # physics loss: Navier-Stokes residuals at collocation points
+        x, y, t = collocation_points
+        u, v, p = self.model(x, y, t)
+
+        # first order derivatives
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        u_y = torch.autograd.grad(u, y, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
+        v_y = torch.autograd.grad(v, y, grad_outputs=torch.ones_like(v), create_graph=True)[0]
+        v_t = torch.autograd.grad(v, t, grad_outputs=torch.ones_like(v), create_graph=True)[0]
+        p_x = torch.autograd.grad(p, x, grad_outputs=torch.ones_like(p), create_graph=True)[0]
+        p_y = torch.autograd.grad(p, y, grad_outputs=torch.ones_like(p), create_graph=True)[0]
+
+        # second order derivatives
+        u_xx = torch.autograd.grad(u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True)[0]
+        u_yy = torch.autograd.grad(u_y, y, grad_outputs=torch.ones_like(u_y), create_graph=True)[0]
+        v_xx = torch.autograd.grad(v_x, x, grad_outputs=torch.ones_like(v_x), create_graph=True)[0]
+        v_yy = torch.autograd.grad(v_y, y, grad_outputs=torch.ones_like(v_y), create_graph=True)[0]
+
+        # Navier-Stokes residuals
+        continuity = u_x + v_y
+        momentum_u = u_t + (u * u_x) + (v * u_y) + p_x - (1.0 / self.Re) * (u_xx + u_yy)
+        momentum_v = v_t + (u * v_x) + (v * v_y) + p_y - (1.0 / self.Re) * (v_xx + v_yy)
+
+        physics_loss = torch.mean(continuity**2) + torch.mean(momentum_u**2) + torch.mean(momentum_v**2)
+        return physics_loss
 
     def training_step(self, batch, batch_idx):
-        inputs = batch["image"]
-        labels = batch["label"]
+        collocation_points = batch["collocation"]
+        bc_points = batch["boundary"]
+        ic_points = batch["initial"]
 
-        _, outputs = self.model(inputs)
-        loss = self.criterion(outputs, labels)
+        bc_loss = self.bc_loss(bc_points)
+        ic_loss = self.ic_loss(ic_points)
+        physics_loss = self.physics_loss(collocation_points)
 
-        _, preds = torch.max(outputs, 1)
-        acc = torch.sum(preds == labels).float() / len(labels)
+        loss = self.lambda_physics * physics_loss + self.lambda_bc * bc_loss + self.lambda_ic * ic_loss
 
-        self.log("train/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
-        self.log("train/accuracy", acc, prog_bar=True, on_step=True, on_epoch=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("physics_loss", physics_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("bc_loss", bc_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("ic_loss", ic_loss, on_step=True, on_epoch=True, prog_bar=False)
 
         return loss
-
-    def validation_step(self, batch, batch_idx):
-        inputs = batch["image"]
-        labels = batch["label"]
-
-        _, outputs = self.model(inputs)
-        loss = self.criterion(outputs, labels)
-
-        _, preds = torch.max(outputs, 1)
-        self.val_acc.update(preds, labels)
-        self.val_balanced_acc.update(preds, labels)
-        self.val_per_class_acc.update(preds, labels)
-
-        self.log("val/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
-
-    def on_validation_epoch_end(self):
-        val_acc = self.val_acc.compute()
-        balanced_acc = self.val_balanced_acc.compute()
-        per_class_acc = self.val_per_class_acc.compute()
-
-        self.log("val/accuracy", val_acc, prog_bar=True)
-        self.log("val/balanced_accuracy", balanced_acc, prog_bar=True)
-
-        for class_idx, acc in enumerate(per_class_acc):
-            class_name = self.LABEL_DECODING[class_idx]
-            self.log(f"val/accuracy_{class_name}", acc)
-
-        # Reset metrics for next epoch
-        self.val_acc.reset()
-        self.val_balanced_acc.reset()
-        self.val_per_class_acc.reset()
-
+    
     def predict_step(self, batch, batch_idx):
         # Get inputs
         inputs = batch["image"]
@@ -162,12 +159,8 @@ class PyLModel(pl.LightningModule):
         optimizer = torch.optim.AdamW(
             self.model.parameters(),
             lr=config_training["training_hyperparameters"]["learning_rate"],
-            weight_decay=config_training["training_hyperparameters"]["weight_decay"],
         )
-        scheduler = NoamScheduler(
-            optimizer,
-            warmup_steps=config_training["training_hyperparameters"]["warmup_steps"],
-        )
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
