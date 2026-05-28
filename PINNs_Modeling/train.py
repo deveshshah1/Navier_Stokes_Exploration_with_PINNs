@@ -25,7 +25,7 @@ def train(use_wandb=True):
     )
     print(f"Model directory: {model_dir}")
     model_dir = os.path.join(model_dir, "checkpoints")
-    os.makedirs(model_dir, exist_ok=False)
+    os.makedirs(model_dir, exist_ok=True)
 
     if use_wandb:
         wandb_config = config_training["wandb_config"]

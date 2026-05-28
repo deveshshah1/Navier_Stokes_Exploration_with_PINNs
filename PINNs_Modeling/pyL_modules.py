@@ -11,6 +11,8 @@ with open("./configs/config_training.yaml", "r") as file:
     config_training = yaml.safe_load(file)
     config_training = {k: v["value"] for k, v in config_training.items()}
 
+def collate_single(batch):
+    return batch[0]
 
 class PyLDataModule(pl.LightningDataModule):
     def __init__(self):
@@ -33,10 +35,11 @@ class PyLDataModule(pl.LightningDataModule):
         return DataLoader(
             self.train_set,
             batch_size=config_training["training_hyperparameters"]["batch_size"],
-            pin_memory=True,
+            pin_memory=False,
             drop_last=True,
             num_workers=4,
             persistent_workers=True,
+            collate_fn=collate_single,
         )
 
 class PyLModel(pl.LightningModule):
@@ -80,6 +83,9 @@ class PyLModel(pl.LightningModule):
     def physics_loss(self, collocation_points):
         # physics loss: Navier-Stokes residuals at collocation points
         x, y, t = collocation_points
+        x = x.requires_grad_(True)
+        y = y.requires_grad_(True)
+        t = t.requires_grad_(True)
         u, v, p = self.model(x, y, t)
 
         # first order derivatives
@@ -117,10 +123,10 @@ class PyLModel(pl.LightningModule):
 
         loss = self.lambda_physics * physics_loss + self.lambda_bc * bc_loss + self.lambda_ic * ic_loss
 
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("physics_loss", physics_loss, on_step=True, on_epoch=True, prog_bar=False)
-        self.log("bc_loss", bc_loss, on_step=True, on_epoch=True, prog_bar=False)
-        self.log("ic_loss", ic_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train/physics_loss", physics_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("train/bc_loss", bc_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log("train/ic_loss", ic_loss, on_step=True, on_epoch=True, prog_bar=False)
 
         return loss
     
