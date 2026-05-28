@@ -82,6 +82,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         xi = torch.full((n,), self.x_min)
         yi = torch.empty(n).uniform_(self.y_min, self.y_max)
         ti = rand_t(n)
+        u_true = self.inlet_u(yi) 
 
         # Outlet: x = x_max, y ∈ [0, H]
         xo = torch.full((n,), self.x_max)
@@ -110,6 +111,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
             "inlet": (xi, yi, ti),
             "outlet": (xo, yo, to),
             "noslip": (xn, yn, tn),
+            "inlet_u": u_true,  # for BC loss calculation
         }
 
     def make_ic_points(self):

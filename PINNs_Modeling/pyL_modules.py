@@ -55,7 +55,7 @@ class PyLModel(pl.LightningModule):
         # inlet (ui = Schäfer-Turek parabolic, vi = 0)
         xi, yi, ti = bc_points["inlet"]
         ui_pred, vi_pred, _ = self.model(xi, yi, ti)
-        ui_true = self.train_set.inlet_u(yi)
+        ui_true = bc_points["inlet_u"]
         inlet_loss = torch.mean((ui_pred - ui_true) ** 2) + torch.mean(vi_pred**2)
 
         # outlet (po = 0)
