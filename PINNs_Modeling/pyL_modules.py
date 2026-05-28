@@ -11,8 +11,10 @@ with open("./configs/config_training.yaml", "r") as file:
     config_training = yaml.safe_load(file)
     config_training = {k: v["value"] for k, v in config_training.items()}
 
+
 def collate_single(batch):
     return batch[0]
+
 
 class PyLDataModule(pl.LightningDataModule):
     def __init__(self):
@@ -42,13 +44,22 @@ class PyLDataModule(pl.LightningDataModule):
             collate_fn=collate_single,
         )
 
+
 class PyLModel(pl.LightningModule):
     def __init__(self, wandb_logger=None):
         super().__init__()
         self.save_hyperparameters()
         self.wandb_logger = wandb_logger
 
-        self.model = BaselineModel(**config_training["model_architecture_hyperparameters"])
+        self.model = BaselineModel(
+            hidden_layers=config_training["model_architecture_hyperparameters"][
+                "hidden_layers"
+            ],
+            hidden_width=config_training["model_architecture_hyperparameters"][
+                "hidden_width"
+            ],
+            domain=config_training["dataset_configs"]["domain"],
+        )
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
         self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
@@ -71,15 +82,15 @@ class PyLModel(pl.LightningModule):
         ui_pred_w, vi_pred_w, _ = self.model(xw, yw, tw)
         noslip_loss = torch.mean(ui_pred_w**2) + torch.mean(vi_pred_w**2)
 
-        return (inlet_loss + outlet_loss + noslip_loss)
-    
+        return inlet_loss + outlet_loss + noslip_loss
+
     def ic_loss(self, ic_points):
         # initial condition: ui = vi = 0 at t=0
         x, y, t = ic_points
         ui_pred, vi_pred, _ = self.model(x, y, t)
         ic_loss = torch.mean(ui_pred**2) + torch.mean(vi_pred**2)
         return ic_loss
-    
+
     def physics_loss(self, collocation_points):
         # physics loss: Navier-Stokes residuals at collocation points
         x, y, t = collocation_points
@@ -89,27 +100,55 @@ class PyLModel(pl.LightningModule):
         u, v, p = self.model(x, y, t)
 
         # first order derivatives
-        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-        u_y = torch.autograd.grad(u, y, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-        u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-        v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-        v_y = torch.autograd.grad(v, y, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-        v_t = torch.autograd.grad(v, t, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-        p_x = torch.autograd.grad(p, x, grad_outputs=torch.ones_like(p), create_graph=True)[0]
-        p_y = torch.autograd.grad(p, y, grad_outputs=torch.ones_like(p), create_graph=True)[0]
+        u_x = torch.autograd.grad(
+            u, x, grad_outputs=torch.ones_like(u), create_graph=True
+        )[0]
+        u_y = torch.autograd.grad(
+            u, y, grad_outputs=torch.ones_like(u), create_graph=True
+        )[0]
+        u_t = torch.autograd.grad(
+            u, t, grad_outputs=torch.ones_like(u), create_graph=True
+        )[0]
+        v_x = torch.autograd.grad(
+            v, x, grad_outputs=torch.ones_like(v), create_graph=True
+        )[0]
+        v_y = torch.autograd.grad(
+            v, y, grad_outputs=torch.ones_like(v), create_graph=True
+        )[0]
+        v_t = torch.autograd.grad(
+            v, t, grad_outputs=torch.ones_like(v), create_graph=True
+        )[0]
+        p_x = torch.autograd.grad(
+            p, x, grad_outputs=torch.ones_like(p), create_graph=True
+        )[0]
+        p_y = torch.autograd.grad(
+            p, y, grad_outputs=torch.ones_like(p), create_graph=True
+        )[0]
 
         # second order derivatives
-        u_xx = torch.autograd.grad(u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True)[0]
-        u_yy = torch.autograd.grad(u_y, y, grad_outputs=torch.ones_like(u_y), create_graph=True)[0]
-        v_xx = torch.autograd.grad(v_x, x, grad_outputs=torch.ones_like(v_x), create_graph=True)[0]
-        v_yy = torch.autograd.grad(v_y, y, grad_outputs=torch.ones_like(v_y), create_graph=True)[0]
+        u_xx = torch.autograd.grad(
+            u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True
+        )[0]
+        u_yy = torch.autograd.grad(
+            u_y, y, grad_outputs=torch.ones_like(u_y), create_graph=True
+        )[0]
+        v_xx = torch.autograd.grad(
+            v_x, x, grad_outputs=torch.ones_like(v_x), create_graph=True
+        )[0]
+        v_yy = torch.autograd.grad(
+            v_y, y, grad_outputs=torch.ones_like(v_y), create_graph=True
+        )[0]
 
         # Navier-Stokes residuals
         continuity = u_x + v_y
         momentum_u = u_t + (u * u_x) + (v * u_y) + p_x - (1.0 / self.Re) * (u_xx + u_yy)
         momentum_v = v_t + (u * v_x) + (v * v_y) + p_y - (1.0 / self.Re) * (v_xx + v_yy)
 
-        physics_loss = torch.mean(continuity**2) + torch.mean(momentum_u**2) + torch.mean(momentum_v**2)
+        physics_loss = (
+            torch.mean(continuity**2)
+            + torch.mean(momentum_u**2)
+            + torch.mean(momentum_v**2)
+        )
         return physics_loss
 
     def training_step(self, batch, batch_idx):
@@ -121,15 +160,42 @@ class PyLModel(pl.LightningModule):
         ic_loss = self.ic_loss(ic_points)
         physics_loss = self.physics_loss(collocation_points)
 
-        loss = self.lambda_physics * physics_loss + self.lambda_bc * bc_loss + self.lambda_ic * ic_loss
+        loss = (
+            self.lambda_physics * physics_loss
+            + self.lambda_bc * bc_loss
+            + self.lambda_ic * ic_loss
+        )
 
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train/physics_loss", physics_loss, on_step=True, on_epoch=True, prog_bar=False)
-        self.log("train/bc_loss", bc_loss, on_step=True, on_epoch=True, prog_bar=False)
-        self.log("train/ic_loss", ic_loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log(
+            "train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=1
+        )
+        self.log(
+            "train/physics_loss",
+            physics_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            batch_size=1,
+        )
+        self.log(
+            "train/bc_loss",
+            bc_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            batch_size=1,
+        )
+        self.log(
+            "train/ic_loss",
+            ic_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            batch_size=1,
+        )
 
         return loss
-    
+
     def predict_step(self, batch, batch_idx):
         # Get inputs
         inputs = batch["image"]
@@ -174,7 +240,7 @@ class PyLModel(pl.LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "interval": "step",
+                "interval": "epoch",
                 "frequency": 1,
             },
         }

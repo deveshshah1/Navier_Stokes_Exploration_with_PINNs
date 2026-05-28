@@ -32,7 +32,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
             0.0,
             10.0,
         ),  # (x_min, x_max, y_min, y_max, t_min, t_max)
-        U_mean: float = 0.2, # mean inlet velocity (for ICs and inlet BC)
+        U_mean: float = 0.2,  # mean inlet velocity (for ICs and inlet BC)
         steps_per_epoch: int = 100,
         **kwargs,
     ):
@@ -48,7 +48,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.steps_per_epoch
-    
+
     def _remove_cylinder_interior(self, x, y, *rest):
         """Drop any points that fall inside the cylinder."""
         inside = ((x - CYL_CX) ** 2 + (y - CYL_CY) ** 2) < CYL_R**2
@@ -82,7 +82,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         xi = torch.full((n,), self.x_min)
         yi = torch.empty(n).uniform_(self.y_min, self.y_max)
         ti = rand_t(n)
-        u_true = self.inlet_u(yi) 
+        u_true = self.inlet_u(yi)
 
         # Outlet: x = x_max, y ∈ [0, H]
         xo = torch.full((n,), self.x_max)
@@ -105,7 +105,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         # combine no-slip
         xn = torch.cat([x_bot, x_top, x_cyl])
         yn = torch.cat([y_bot, y_top, y_cyl])
-        tn = rand_t(len(xn)) 
+        tn = rand_t(len(xn))
 
         return {
             "inlet": (xi, yi, ti),
@@ -159,9 +159,7 @@ if __name__ == "__main__":
         print(f"BC {name:<8}: {pts[0].shape} points")
 
     x_ic, y_ic, t_ic = batch["ic"]
-    print(
-        f"IC          : {x_ic.shape} points  (t={t_ic.unique().tolist()})"
-    )
+    print(f"IC          : {x_ic.shape} points  (t={t_ic.unique().tolist()})")
 
     # plot collocation + BC points
     fig, axes = plt.subplots(1, 2, figsize=(13, 4))
