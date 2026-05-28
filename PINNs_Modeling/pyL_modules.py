@@ -109,7 +109,7 @@ class PyLModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         collocation_points = batch["collocation"]
         bc_points = batch["boundary"]
-        ic_points = batch["initial"]
+        ic_points = batch["ic"]
 
         bc_loss = self.bc_loss(bc_points)
         ic_loss = self.ic_loss(ic_points)
