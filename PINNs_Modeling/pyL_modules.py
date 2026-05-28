@@ -166,7 +166,10 @@ class PyLModel(pl.LightningModule):
             self.model.parameters(),
             lr=config_training["training_hyperparameters"]["learning_rate"],
         )
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=config_training["training_hyperparameters"]["num_epochs"],
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
