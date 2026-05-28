@@ -34,6 +34,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         ),  # (x_min, x_max, y_min, y_max, t_min, t_max)
         U_mean: float = 0.2, # mean inlet velocity (for ICs and inlet BC)
         steps_per_epoch: int = 100,
+        **kwargs,
     ):
         super().__init__()
         self.num_collocation_points = num_collocation_points

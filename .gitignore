@@ -1,6 +1,7 @@
 # Project specifics
 sandbox/
 trained_models/
+wandb/
 *.parquet
 
 # Byte-compiled / optimized / DLL files
