@@ -32,7 +32,7 @@ def train(use_wandb=True):
         wandb_config["notes"] = config_training["experiment_details"]["experiment_name"]
         wandb_logger = WandbLogger(**wandb_config)
         model_name = wandb_logger.experiment.name
-        wandb_logger.experiment.log_code("..")
+        wandb_logger.experiment.log_code(".")
         lr_monitor = LearningRateMonitor(logging_interval="step")
     else:
         model_name = "local-test"
@@ -45,7 +45,7 @@ def train(use_wandb=True):
 
     # Create Model
     print("Creating Model")
-    model = PyLModel()
+    model = PyLModel(wandb_logger=wandb_logger)
     model_summary = ModelSummary(max_depth=2)
 
     # Create callbacks

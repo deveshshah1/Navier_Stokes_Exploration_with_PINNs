@@ -1,4 +1,5 @@
 import yaml
+import wandb
 import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
@@ -184,6 +185,48 @@ class PyLModel(pl.LightningModule):
             prog_bar=False,
             batch_size=1,
         )
+
+        # Log histograms of predictions and losses to W&B
+        if self.wandb_logger is not None and batch_idx % 10 == 0:
+            x, y, t = collocation_points
+            with torch.no_grad():
+                u_pred, v_pred, p_pred = self.model(x, y, t)
+
+            self.wandb_logger.experiment.log(
+                {
+                    "distributions/u_pred": wandb.Histogram(
+                        u_pred.detach().cpu().numpy()
+                    ),
+                    "distributions/v_pred": wandb.Histogram(
+                        v_pred.detach().cpu().numpy()
+                    ),
+                    "distributions/p_pred": wandb.Histogram(
+                        p_pred.detach().cpu().numpy()
+                    ),
+                    "distributions/u_mean": u_pred.mean().item(),
+                    "distributions/u_std": u_pred.std().item(),
+                    "distributions/v_mean": v_pred.mean().item(),
+                    "distributions/v_std": v_pred.std().item(),
+                    "distributions/p_mean": p_pred.mean().item(),
+                    "distributions/p_std": p_pred.std().item(),
+                    "distributions/u_abs_max": u_pred.abs().max().item(),
+                    "distributions/v_abs_max": v_pred.abs().max().item(),
+                    "distributions/p_abs_max": p_pred.abs().max().item(),
+                },
+                step=self.global_step,
+            )
+
+            xi, yi, ti = bc_points["inlet"]
+            with torch.no_grad():
+                ui_pred, _, _ = self.model(xi, yi, ti)
+            ui_true = bc_points["inlet_u"]
+            self.wandb_logger.experiment.log(
+                {
+                    "distributions/inlet_u_pred_mean": ui_pred.mean().item(),
+                    "distributions/inlet_u_true_mean": ui_true.mean().item(),
+                },
+                step=self.global_step,
+            )
 
         return loss
 
