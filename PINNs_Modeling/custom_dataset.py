@@ -25,14 +25,14 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         num_bc_points: int = 200,  # per boundary (inlet, outlet)
         num_noslip_points: int = 300,  # per no-slip surface (bottom, top, cyl)
         num_ic_points: int = 500,
-        domain: tuple = (
-            0.0,
-            2.2,
-            0.0,
-            0.41,
-            0.0,
-            10.0,
-        ),  # (x_min, x_max, y_min, y_max, t_min, t_max)
+        domain_bounds: dict = {
+            "x_min": 0.0,
+            "x_max": 2.2,
+            "y_min": 0.0,
+            "y_max": 0.41,
+            "t_min": 0.0,
+            "t_max": 10.0,
+        },
         U_mean: float = 0.2,  # mean inlet velocity (for ICs and inlet BC)
         steps_per_epoch: int = 100,
         ground_truth_dataset_path: str = None,
@@ -46,7 +46,12 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         self.num_ic_points = num_ic_points
         self.steps_per_epoch = steps_per_epoch
 
-        self.x_min, self.x_max, self.y_min, self.y_max, self.t_min, self.t_max = domain
+        self.x_min = domain_bounds["x_min"]
+        self.x_max = domain_bounds["x_max"]
+        self.y_min = domain_bounds["y_min"]
+        self.y_max = domain_bounds["y_max"]
+        self.t_min = domain_bounds["t_min"]
+        self.t_max = domain_bounds["t_max"]
         self.U_mean = U_mean
 
         self.use_ground_truth_dataset = use_ground_truth_dataset

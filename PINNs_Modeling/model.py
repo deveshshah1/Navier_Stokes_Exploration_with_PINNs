@@ -7,14 +7,14 @@ class BaselineModel(nn.Module):
         self,
         hidden_layers=6,
         hidden_width=64,
-        domain=(
-            0.0,
-            2.2,
-            0.0,
-            0.41,
-            0.0,
-            10.0,
-        ),
+        domain_bounds={
+            "x_min": 0.0,
+            "x_max": 2.2,
+            "y_min": 0.0,
+            "y_max": 0.41,
+            "t_min": 0.0,
+            "t_max": 10.0,
+        },
     ):
         super().__init__()
         layers = [nn.Linear(3, hidden_width), nn.Tanh()]
@@ -27,12 +27,12 @@ class BaselineModel(nn.Module):
         self._init_weights()
 
         # Set normalization constants as buffers so they move with the model/device
-        self.register_buffer("x_min", torch.tensor(domain[0]))
-        self.register_buffer("x_max", torch.tensor(domain[1]))
-        self.register_buffer("y_min", torch.tensor(domain[2]))
-        self.register_buffer("y_max", torch.tensor(domain[3]))
-        self.register_buffer("t_min", torch.tensor(domain[4]))
-        self.register_buffer("t_max", torch.tensor(domain[5]))
+        self.register_buffer("x_min", torch.tensor(domain_bounds["x_min"]))
+        self.register_buffer("x_max", torch.tensor(domain_bounds["x_max"]))
+        self.register_buffer("y_min", torch.tensor(domain_bounds["y_min"]))
+        self.register_buffer("y_max", torch.tensor(domain_bounds["y_max"]))
+        self.register_buffer("t_min", torch.tensor(domain_bounds["t_min"]))
+        self.register_buffer("t_max", torch.tensor(domain_bounds["t_max"]))
 
     def _normalize(self, x, y, t):
         """Normalize inputs to [-1, 1] range based on domain limits."""

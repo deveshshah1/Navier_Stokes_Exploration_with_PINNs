@@ -20,15 +20,6 @@ class PyLDataModule(pl.LightningDataModule):
     def __init__(self):
         super().__init__()
         self.dataset_configs = config_training["dataset_configs"]
-        bounds = self.dataset_configs.pop("domain_bounds")
-        self.dataset_configs["domain"] = (
-            bounds["x_min"],
-            bounds["x_max"],
-            bounds["y_min"],
-            bounds["y_max"],
-            bounds["t_min"],
-            bounds["t_max"],
-        )
 
     def setup(self, stage=None):
         self.train_set = Cylinder2DDataset(**self.dataset_configs)
@@ -58,7 +49,7 @@ class PyLModel(pl.LightningModule):
             hidden_width=config_training["model_architecture_hyperparameters"][
                 "hidden_width"
             ],
-            domain=config_training["dataset_configs"]["domain"],
+            domain_bounds=config_training["dataset_configs"]["domain_bounds"],
         )
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
