@@ -3,8 +3,8 @@ dataset_configs:
   value:
     ground_truth_dataset_path: "./dataset/cylinder_Re20_groundtruth.parquet" # LOCAL
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
-    num_collocation_points: 2000
-    num_bc_points: 200
+    num_collocation_points: 5000
+    num_bc_points: 500
     num_noslip_points: 300
     num_ic_points: 500
     U_mean: 0.2
@@ -23,26 +23,26 @@ training_hyperparameters:
   value:
     batch_size: 1
     num_epochs: 1000
-    learning_rate: 0.001
+    learning_rate: 0.01
 
 loss_weights:
   desc: Loss Weights for Different Components
   value:
-    lambda_physics: 10.0
-    lambda_bc: 1.0
-    lambda_ic: 5.0
+    lambda_physics: 1.0
+    lambda_bc: 50.0
+    lambda_ic: 1.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
   value:
-    hidden_layers: 6
-    hidden_width: 64
+    hidden_layers: 8
+    hidden_width: 128
 
 experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re20_baseline_withlogging"
+    experiment_name: "re20_higher_bc_weight"
     use_wandb: True
 
 wandb_config:
