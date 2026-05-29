@@ -198,33 +198,18 @@ class PyLModel(pl.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         # Get inputs
-        inputs = batch["image"]
-        labels = batch["label"]
-        ids = batch["id"]
+        x, y, t, id = batch
 
         # Forward pass
         self.model.eval()
         with torch.no_grad():
-            emb, logits = self.model(inputs)
-
-        outputs = torch.nn.functional.softmax(logits, dim=1)
-        preds = torch.argmax(outputs, dim=1)
-
-        true_label_name = [
-            self.LABEL_DECODING[label.item()]
-            if label.item() in self.LABEL_DECODING
-            else "Unknown"
-            for label in labels
-        ]
-        pred_label_name = [self.LABEL_DECODING[pred.item()] for pred in preds]
+            u, v, p = self.model(x, y, t)
 
         return {
-            "id": ids,
-            "predicted_label": pred_label_name,
-            "true_label": true_label_name,
-            "embedding": emb,
-            "outputs": outputs,
-            "logits": logits,
+            "test_point_id": id,
+            "u_pred": u,
+            "v_pred": v,
+            "p_pred": p,
         }
 
     def configure_optimizers(self):

@@ -1,10 +1,8 @@
 dataset_configs:
   desc: Ground Truth Dataset Configurations
   value:
-    base_dataset_path: "./dataset/" # LOCAL
+    ground_truth_dataset_path: "./dataset/cylinder_Re20_groundtruth.parquet" # LOCAL
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
-    cylinder_Re20: "cylinder_Re20_groundtruth.parquet"
-    cylinder_Re100: "cylinder_Re100_groundtruth.parquet"
     num_collocation_points: 2000
     num_bc_points: 200
     num_noslip_points: 300
@@ -30,9 +28,9 @@ training_hyperparameters:
 loss_weights:
   desc: Loss Weights for Different Components
   value:
-    lambda_physics: 1.0
+    lambda_physics: 10.0
     lambda_bc: 1.0
-    lambda_ic: 1.0
+    lambda_ic: 5.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters

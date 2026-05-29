@@ -2,6 +2,7 @@
 sandbox/
 trained_models/
 wandb/
+lightning_logs/
 *.parquet
 
 # Byte-compiled / optimized / DLL files

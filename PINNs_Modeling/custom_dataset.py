@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import yaml
 import matplotlib.pyplot as plt
@@ -34,6 +35,8 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         ),  # (x_min, x_max, y_min, y_max, t_min, t_max)
         U_mean: float = 0.2,  # mean inlet velocity (for ICs and inlet BC)
         steps_per_epoch: int = 100,
+        ground_truth_dataset_path: str = None,
+        use_ground_truth_dataset: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -46,7 +49,13 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         self.x_min, self.x_max, self.y_min, self.y_max, self.t_min, self.t_max = domain
         self.U_mean = U_mean
 
+        self.use_ground_truth_dataset = use_ground_truth_dataset
+        if self.use_ground_truth_dataset:
+            self.dataset_df = pd.read_parquet(ground_truth_dataset_path)
+
     def __len__(self):
+        if self.use_ground_truth_dataset:
+            return len(self.dataset_df)
         return self.steps_per_epoch
 
     def _remove_cylinder_interior(self, x, y, *rest):
@@ -126,12 +135,23 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
 
         return x, y, t
 
+    def get_ground_truth_points(self, idx):
+        test_point = self.dataset_df.loc[idx]
+        test_point_id = torch.tensor(test_point["test_point_id"], dtype=torch.int64)
+        x = torch.tensor(test_point["x"], dtype=torch.float32)
+        y = torch.tensor(test_point["y"], dtype=torch.float32)
+        t = torch.tensor(test_point["t"], dtype=torch.float32)
+        return x, y, t, test_point_id
+
     def __getitem__(self, idx):
-        return {
-            "collocation": self.make_collocation_points(),
-            "boundary": self.make_boundary_points(),
-            "ic": self.make_ic_points(),
-        }
+        if self.use_ground_truth_dataset:
+            return self.get_ground_truth_points(idx)
+        else:
+            return {
+                "collocation": self.make_collocation_points(),
+                "boundary": self.make_boundary_points(),
+                "ic": self.make_ic_points(),
+            }
 
 
 if __name__ == "__main__":
@@ -176,7 +196,11 @@ if __name__ == "__main__":
 
     ax = axes[1]
     colours = {"inlet": "tab:blue", "outlet": "tab:orange", "noslip": "tab:red"}
-    for name, (x, y, _) in batch["boundary"].items():
+    for name, (x, y, _) in [
+        ("inlet", batch["boundary"]["inlet"]),
+        ("outlet", batch["boundary"]["outlet"]),
+        ("noslip", batch["boundary"]["noslip"]),
+    ]:
         ax.scatter(x, y, s=6, label=name, color=colours[name], alpha=0.7)
     ax.scatter(x_ic, y_ic, s=3, label="IC (t=0)", color="tab:green", alpha=0.5)
     cyl2 = plt.Circle((CYL_CX, CYL_CY), CYL_R, color="gray", zorder=5)

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from custom_dataset import PlantPathologyDataset
+from custom_dataset import Cylinder2DDataset
 from pyL_modules import PyLModel
 from utils.misc import get_device_params
 
@@ -16,12 +16,9 @@ with open("./configs/config_training.yaml", "r") as file:
 
 
 def predict(
-    stage,
     device,
-    base_dataset_path,
-    model_dataset_name,
-    model_dataset_path,
-    ckpt_to_use="_best_val_loss",
+    ckpt_to_use,
+    ground_truth_dataset_path,
 ):
     # Find correct ckpt for given model run
     model_dir = config_training["experiment_details"]["model_dir"]
@@ -32,7 +29,7 @@ def predict(
     ckpt_path = f"{run_name}{ckpt_to_use}.ckpt"
 
     print(
-        f"------------------Generating {stage} predictions for {os.path.join(ckpt_dir, ckpt_path)}------------------"
+        f"------------------Generating predictions for {os.path.join(ckpt_dir, ckpt_path)}------------------"
     )
 
     # Create results directory
@@ -40,12 +37,12 @@ def predict(
     os.makedirs(results_dir, exist_ok=True)
 
     # Load the dataset
-    df = pd.read_csv(os.path.join(base_dataset_path, model_dataset_path, "dataset.csv"))
+    df = pd.read_parquet(ground_truth_dataset_path)
 
     # Define dataset and data loader
     print("Loading dataset")
-    test_data = PlantPathologyDataset(stage=stage, base_dataset_path=base_dataset_path, dataset_name=model_dataset_path)
-    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=8)
+    test_data = Cylinder2DDataset(ground_truth_dataset_path=ground_truth_dataset_path, use_ground_truth_dataset=True)
+    test_loader = DataLoader(test_data, batch_size=256, shuffle=False, num_workers=8)
     assert len(df) == len(test_data), "Dataset length mismatch"
 
     # Load the model
@@ -72,50 +69,32 @@ def predict(
 
     # Accumulate predictions
     print("Accumulating predictions...")
-    id, embedding, predicted_label, true_label, outputs, logits = [], [], [], [], [], []
+    id, u_pred, v_pred, p_pred = [], [], [], []
     for batch in out_batches:
-        id.append(np.array(batch["id"]))
-        embedding.append(batch["embedding"].cpu().numpy().astype(np.float32))
-        predicted_label.append(np.array(batch["predicted_label"]))
-        true_label.append(np.array(batch["true_label"]))
-        outputs.append(batch["outputs"].cpu().numpy().astype(np.float32))
-        logits.append(batch["logits"].cpu().numpy().astype(np.float32))
+        id.append(np.array(batch["test_point_id"]))
+        u_pred.append(batch["u_pred"].cpu().numpy().astype(np.float32))
+        v_pred.append(batch["v_pred"].cpu().numpy().astype(np.float32))
+        p_pred.append(batch["p_pred"].cpu().numpy().astype(np.float32))
 
     id = np.concatenate(id, axis=0)
-    embedding = np.concatenate(embedding, axis=0)
-    predicted_label = np.concatenate(predicted_label, axis=0)
-    true_label = np.concatenate(true_label, axis=0)
-    outputs = np.concatenate(outputs, axis=0)
-    logits = np.concatenate(logits, axis=0)
-
-    embedding_list = []
-    for idx in range(len(embedding)):
-        embedding_list.append(embedding[idx])
-
-    outputs_list = []
-    for idx in range(len(outputs)):
-        outputs_list.append(outputs[idx])
-
-    logits_list = []
-    for idx in range(len(logits)):
-        logits_list.append(logits[idx])
+    u_pred = np.concatenate(u_pred, axis=0)
+    v_pred = np.concatenate(v_pred, axis=0)
+    p_pred = np.concatenate(p_pred, axis=0)
 
     # Save the predictions
     df_to_add = pd.DataFrame(
         {
-            "id": id,
-            "true_label": true_label,
-            "predicted_label": predicted_label,
-            "embedding": embedding_list,
-            "outputs": outputs_list,
-            "logits": logits_list,
+            "test_point_id": id,
+            "Ux_pred": u_pred,
+            "Uy_pred": v_pred,
+            "p_pred": p_pred,
         }
     )
 
-    df = pd.merge(df, df_to_add, on="id", how="left")
+    df = pd.merge(df, df_to_add, on="test_point_id", how="left")
 
     # Save to parquet
-    save_path = os.path.join(results_dir, f"{model_dataset_name}_predictions.parquet")
+    save_path = os.path.join(results_dir, "predictions.parquet")
     df.to_parquet(save_path, index=False)
 
     return
@@ -124,21 +103,11 @@ def predict(
 if __name__ == "__main__":
     device_params = get_device_params()
     device = torch.device(device_params["accelerator"])
-    base_dataset_path = config_training["dataset_configs"]["base_dataset_path"]
-    datasets_of_interest = {
-        "plantpathology": config_training["dataset_configs"]["plantpathology"],
-        "stanfordcars": config_training["dataset_configs"]["stanfordcars"],
-        "flowers102": config_training["dataset_configs"]["flowers102"],
-        "dtd": config_training["dataset_configs"]["dtd"],
-    }
-    for ckpt in ["_best_val_loss", "_best_train_loss", "_best_val_balanced_accuracy"]:
-        for model_dataset_name, model_dataset_path in datasets_of_interest.items():
-            predict(
-                stage="ALL",
-                device=device,
-                ckpt_to_use=ckpt,
-                base_dataset_path=base_dataset_path,
-                model_dataset_name=model_dataset_name,
-                model_dataset_path=model_dataset_path,
-            )
+    ground_truth_dataset_path = config_training["dataset_configs"]["ground_truth_dataset_path"]
+    for ckpt in ["_best_train_loss"]:
+        predict(
+            device=device,
+            ckpt_to_use=ckpt,
+            ground_truth_dataset_path=ground_truth_dataset_path,
+        )
     print("Predictions saved successfully")
