@@ -84,66 +84,53 @@ class PyLModel(pl.LightningModule):
         ui_pred, vi_pred, _ = self.model(x, y, t)
         ic_loss = torch.mean(ui_pred**2) + torch.mean(vi_pred**2)
         return ic_loss
-
+    
     def physics_loss(self, collocation_points):
-        # physics loss: Navier-Stokes residuals at collocation points
         x, y, t = collocation_points
         x = x.requires_grad_(True)
         y = y.requires_grad_(True)
         t = t.requires_grad_(True)
         u, v, p = self.model(x, y, t)
 
-        # first order derivatives
-        u_x = torch.autograd.grad(
-            u, x, grad_outputs=torch.ones_like(u), create_graph=True
-        )[0]
-        u_y = torch.autograd.grad(
-            u, y, grad_outputs=torch.ones_like(u), create_graph=True
-        )[0]
-        u_t = torch.autograd.grad(
-            u, t, grad_outputs=torch.ones_like(u), create_graph=True
-        )[0]
-        v_x = torch.autograd.grad(
-            v, x, grad_outputs=torch.ones_like(v), create_graph=True
-        )[0]
-        v_y = torch.autograd.grad(
-            v, y, grad_outputs=torch.ones_like(v), create_graph=True
-        )[0]
-        v_t = torch.autograd.grad(
-            v, t, grad_outputs=torch.ones_like(v), create_graph=True
-        )[0]
-        p_x = torch.autograd.grad(
-            p, x, grad_outputs=torch.ones_like(p), create_graph=True
-        )[0]
-        p_y = torch.autograd.grad(
-            p, y, grad_outputs=torch.ones_like(p), create_graph=True
-        )[0]
+        # scaling factors from normalization chain rule
+        sx = (self.model.x_max - self.model.x_min) / 2.0  # 1.1
+        sy = (self.model.y_max - self.model.y_min) / 2.0  # 0.205
+        st = (self.model.t_max - self.model.t_min) / 2.0  # 5.0
 
-        # second order derivatives
-        u_xx = torch.autograd.grad(
-            u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True
-        )[0]
-        u_yy = torch.autograd.grad(
-            u_y, y, grad_outputs=torch.ones_like(u_y), create_graph=True
-        )[0]
-        v_xx = torch.autograd.grad(
-            v_x, x, grad_outputs=torch.ones_like(v_x), create_graph=True
-        )[0]
-        v_yy = torch.autograd.grad(
-            v_y, y, grad_outputs=torch.ones_like(v_y), create_graph=True
-        )[0]
+        def grad(f, var):
+            return torch.autograd.grad(
+                f, var, grad_outputs=torch.ones_like(f), create_graph=True
+            )[0]
 
-        # Navier-Stokes residuals
+        # first order — autograd gives du/dx = (1/sx) * du/dx_norm
+        # so to get physical derivative multiply by sx
+        u_x = grad(u, x) * sx
+        u_y = grad(u, y) * sy
+        u_t = grad(u, t) * st
+        v_x = grad(v, x) * sx
+        v_y = grad(v, y) * sy
+        v_t = grad(v, t) * st
+        p_x = grad(p, x) * sx
+        p_y = grad(p, y) * sy
+
+        # second order
+        u_xx = grad(u_x, x) * sx
+        u_yy = grad(u_y, y) * sy
+        v_xx = grad(v_x, x) * sx
+        v_yy = grad(v_y, y) * sy
+
         continuity = u_x + v_y
-        momentum_u = u_t + (u * u_x) + (v * u_y) + p_x - (1.0 / self.Re) * (u_xx + u_yy)
-        momentum_v = v_t + (u * v_x) + (v * v_y) + p_y - (1.0 / self.Re) * (v_xx + v_yy)
+        momentum_u = u_t + u*u_x + v*u_y + p_x - (1.0/self.Re)*(u_xx + u_yy)
+        momentum_v = v_t + u*v_x + v*v_y + p_y - (1.0/self.Re)*(v_xx + v_yy)
 
-        physics_loss = (
+        pressure_gauge_loss = p.mean()**2
+
+        return (
             torch.mean(continuity**2)
             + torch.mean(momentum_u**2)
             + torch.mean(momentum_v**2)
+            + (0.2*pressure_gauge_loss)
         )
-        return physics_loss
         
     def training_step(self, batch, batch_idx):
         collocation_points = batch["collocation"]
