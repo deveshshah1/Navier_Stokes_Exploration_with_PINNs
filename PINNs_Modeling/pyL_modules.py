@@ -151,54 +151,23 @@ class PyLModel(pl.LightningModule):
         self.log(
             "train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=1
         )
-        self.log(
-            "train/physics_loss",
-            physics_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            batch_size=1,
-        )
-        self.log(
-            "train/bc_loss",
-            bc_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            batch_size=1,
-        )
-        self.log(
-            "train/ic_loss",
-            ic_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            batch_size=1,
-        )
-        self.log(
-            "train/inlet_loss",
-            inlet_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            batch_size=1,
-        )
-        self.log(
-            "train/outlet_loss",
-            outlet_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            batch_size=1,
-        )
-        self.log(
-            "train/noslip_loss",
-            noslip_loss,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            batch_size=1,
-        )
+
+        def log_loss(name, value):
+            self.log(
+                name,
+                value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                batch_size=1,
+            )
+            
+        log_loss("train/physics_loss", physics_loss)
+        log_loss("train/bc_loss", bc_loss)
+        log_loss("train/ic_loss", ic_loss)
+        log_loss("train/inlet_loss", inlet_loss)
+        log_loss("train/outlet_loss", outlet_loss)
+        log_loss("train/noslip_loss", noslip_loss)
 
         # Log histograms of predictions and losses to W&B
         if self.wandb_logger is not None and batch_idx % 10 == 0:
