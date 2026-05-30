@@ -55,7 +55,6 @@ class PyLModel(pl.LightningModule):
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
         self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
-        self.lambda_pressure = config_training["loss_weights"]["lambda_pressure"]
         self.Re = config_training["dataset_configs"]["reynolds_number"]
 
     def bc_loss(self, bc_points):
@@ -69,13 +68,15 @@ class PyLModel(pl.LightningModule):
         xo, yo, to = bc_points["outlet"]
         _, _, po_pred = self.model(xo, yo, to)
         outlet_loss = torch.mean(po_pred**2)
+        # upweight outlet pressure loss
+        outlet_loss *= 20.0
 
         # no-slip walls (ui = vi = 0)
         xw, yw, tw = bc_points["noslip"]
         ui_pred_w, vi_pred_w, _ = self.model(xw, yw, tw)
         noslip_loss = torch.mean(ui_pred_w**2) + torch.mean(vi_pred_w**2)
 
-        return inlet_loss + outlet_loss + noslip_loss
+        return inlet_loss, outlet_loss, noslip_loss
 
     def ic_loss(self, ic_points):
         # initial condition: ui = vi = 0 at t=0
@@ -143,29 +144,21 @@ class PyLModel(pl.LightningModule):
             + torch.mean(momentum_v**2)
         )
         return physics_loss
-    
-    def pressure_loss(self, collocation_points):
-        # want pressure to stay low (between -0.1 and 0.1) to prevent unphysical solutions
-        x, y, t = collocation_points
-        _, _, p = self.model(x, y, t)
-        pressure_loss = torch.mean(torch.relu(p - 0.1) ** 2) + torch.mean(torch.relu(-0.1 - p) ** 2)
-        return pressure_loss
-    
+        
     def training_step(self, batch, batch_idx):
         collocation_points = batch["collocation"]
         bc_points = batch["boundary"]
         ic_points = batch["ic"]
 
-        bc_loss = self.bc_loss(bc_points)
+        inlet_loss, outlet_loss, noslip_loss = self.bc_loss(bc_points)
+        bc_loss = inlet_loss + outlet_loss + noslip_loss
         ic_loss = self.ic_loss(ic_points)
         physics_loss = self.physics_loss(collocation_points)
-        pressure_loss = self.pressure_loss(collocation_points)
 
         loss = (
             self.lambda_physics * physics_loss
             + self.lambda_bc * bc_loss
             + self.lambda_ic * ic_loss
-            + self.lambda_pressure * pressure_loss
         )
 
         self.log(
@@ -196,7 +189,24 @@ class PyLModel(pl.LightningModule):
             batch_size=1,
         )
         self.log(
-            "train/pressure_loss",            pressure_loss,
+            "train/inlet_loss",
+            inlet_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            batch_size=1,
+        )
+        self.log(
+            "train/outlet_loss",
+            outlet_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            batch_size=1,
+        )
+        self.log(
+            "train/noslip_loss",
+            noslip_loss,
             on_step=True,
             on_epoch=True,
             prog_bar=False,
