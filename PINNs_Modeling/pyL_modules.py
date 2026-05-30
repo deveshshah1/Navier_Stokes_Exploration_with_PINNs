@@ -55,6 +55,7 @@ class PyLModel(pl.LightningModule):
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
         self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
+        self.lambda_pressure_in_physics = config_training["loss_weights"]["lambda_pressure_in_physics"]
         self.Re = config_training["dataset_configs"]["reynolds_number"]
 
     def bc_loss(self, bc_points):
@@ -129,7 +130,7 @@ class PyLModel(pl.LightningModule):
             torch.mean(continuity**2)
             + torch.mean(momentum_u**2)
             + torch.mean(momentum_v**2)
-            + (0.2*pressure_gauge_loss)
+            + (self.lambda_pressure_in_physics * pressure_gauge_loss)
         )
         
     def training_step(self, batch, batch_idx):
@@ -161,7 +162,7 @@ class PyLModel(pl.LightningModule):
                 prog_bar=False,
                 batch_size=1,
             )
-            
+
         log_loss("train/physics_loss", physics_loss)
         log_loss("train/bc_loss", bc_loss)
         log_loss("train/ic_loss", ic_loss)
