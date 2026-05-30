@@ -31,19 +31,19 @@ loss_weights:
     lambda_physics: 1.0
     lambda_bc: 40.0
     lambda_ic: 1.0
-    lambda_pressure_in_physics: 0.35
+    lambda_pressure_in_physics: 0.5
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
   value:
-    hidden_layers: 8
-    hidden_width: 128
+    hidden_layers: 12
+    hidden_width: 256
 
 experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re20_higher_pressure_loss"
+    experiment_name: "re20_larger_model"
     use_wandb: True
 
 wandb_config:
