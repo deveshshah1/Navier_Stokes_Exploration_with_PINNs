@@ -43,7 +43,7 @@ experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re20_larger_model"
+    experiment_name: "re20_baseline"
     use_wandb: True
 
 wandb_config:
