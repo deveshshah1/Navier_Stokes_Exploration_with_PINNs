@@ -28,7 +28,7 @@ training_hyperparameters:
 loss_weights:
   desc: Loss Weights for Different Components
   value:
-    lambda_physics: 1.0
+    lambda_physics: 2.0
     lambda_bc: 40.0
     lambda_ic: 1.0
     lambda_pressure_in_physics: 0.5
@@ -36,8 +36,8 @@ loss_weights:
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
   value:
-    hidden_layers: 12
-    hidden_width: 256
+    hidden_layers: 8
+    hidden_width: 128
 
 experiment_details:
   desc: Experiment Details
