@@ -2,12 +2,10 @@ import os
 import yaml
 import pandas as pd
 import numpy as np
-import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from custom_dataset import Cylinder2DDataset
 from pyL_modules import PyLModel
-from utils.misc import get_device_params
 
 # Global config
 with open("./configs/config_training.yaml", "r") as file:
@@ -16,7 +14,6 @@ with open("./configs/config_training.yaml", "r") as file:
 
 
 def predict(
-    device,
     ckpt_to_use,
     ground_truth_dataset_path,
 ):
@@ -46,22 +43,14 @@ def predict(
     assert len(df) == len(test_data), "Dataset length mismatch"
 
     # Load the model
-    print(f"Device: {device}")
     model_path = os.path.join(ckpt_dir, ckpt_path)
     print(f"Loading model from {model_path}")
     model = PyLModel.load_from_checkpoint(
         model_path,
-        map_location=device,
-    ).to(device)
+        map_location="cpu",
+    )
 
-    if device.type == "cpu":
-        trainer = pl.Trainer(accelerator="cpu", devices="auto")
-    elif device.type == "cuda":
-        trainer = pl.Trainer(accelerator="gpu", devices=[0])
-    elif device.type == "mps":
-        trainer = pl.Trainer(accelerator="mps", devices=1)
-    else:
-        raise ValueError("Unsupported device type")
+    trainer = pl.Trainer(accelerator="auto", devices="auto")
 
     # Make predictions
     print("Making predictions...")
@@ -101,12 +90,9 @@ def predict(
 
 
 if __name__ == "__main__":
-    device_params = get_device_params()
-    device = torch.device(device_params["accelerator"])
     ground_truth_dataset_path = config_training["dataset_configs"]["ground_truth_dataset_path"]
     for ckpt in ["_best_train_loss"]:
         predict(
-            device=device,
             ckpt_to_use=ckpt,
             ground_truth_dataset_path=ground_truth_dataset_path,
         )

@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks import (
     ModelSummary,
     ModelCheckpoint,
 )
-from utils.misc import get_device_params
+from lightning.pytorch.accelerators import TPUAccelerator
 from pyL_modules import PyLDataModule, PyLModel
 
 
@@ -54,7 +54,12 @@ def train(use_wandb=True):
         callbacks.append(model_summary)
         callbacks.append(lr_monitor)
 
-    device_params = get_device_params()
+    def get_trainer_params():
+        if TPUAccelerator.is_available():
+            return {"accelerator": "tpu", "devices": "auto", "strategy": "auto"}
+        return {"accelerator": "auto", "devices": "auto", "strategy": "auto"}
+
+    device_params = get_trainer_params()
     print(f"Device parameters: {device_params}")
 
     # Initialize Trainer
