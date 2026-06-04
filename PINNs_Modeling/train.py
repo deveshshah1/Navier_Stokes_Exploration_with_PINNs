@@ -32,7 +32,13 @@ def train(use_wandb=True):
         wandb_config["notes"] = config_training["experiment_details"]["experiment_name"]
         wandb_logger = WandbLogger(**wandb_config)
         model_name = wandb_logger.experiment.name
-        wandb_logger.experiment.log_code(".")
+        wandb_logger.experiment.log_code(
+            root=".",
+            include_fn=lambda path: (
+                path.endswith(".py")
+                or path.endswith(".yaml")
+            )
+        )
         lr_monitor = LearningRateMonitor(logging_interval="step")
     else:
         model_name = "local-test"
