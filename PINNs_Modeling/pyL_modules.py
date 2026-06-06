@@ -40,7 +40,7 @@ class PyLDataModule(pl.LightningDataModule):
 class PyLModel(pl.LightningModule):
     def __init__(self, wandb_logger=None):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["wandb_logger"])
         self.wandb_logger = wandb_logger
 
         self.model = BaselineModel(

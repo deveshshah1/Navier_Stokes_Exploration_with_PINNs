@@ -6,6 +6,9 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from custom_dataset import Cylinder2DDataset
 from pyL_modules import PyLModel
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+
 
 # Global config
 with open("./configs/config_training.yaml", "r") as file:
@@ -48,6 +51,7 @@ def predict(
     model = PyLModel.load_from_checkpoint(
         model_path,
         map_location="cpu",
+        wandb_logger=None,
     )
 
     trainer = pl.Trainer(accelerator="auto", devices="auto")
