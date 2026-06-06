@@ -29,9 +29,9 @@ training_hyperparameters:
 loss_weights:
   desc: Loss Weights for Different Components
   value:
-    lambda_physics: 1.0
+    lambda_physics: 3.0
     lambda_bc: 5.0
-    lambda_ic: 0.1
+    lambda_ic: 0.2
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
