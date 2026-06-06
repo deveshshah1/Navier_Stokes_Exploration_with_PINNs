@@ -56,7 +56,7 @@ class PyLModel(pl.LightningModule):
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
         self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
         self.lambda_pressure_in_physics = config_training["loss_weights"]["lambda_pressure_in_physics"]
-        self.Re = config_training["dataset_configs"]["reynolds_number"]
+        self.nu = config_training["dataset_configs"]["nu"]
 
     def bc_loss(self, bc_points):
         # inlet (ui = Schäfer-Turek parabolic, vi = 0)
@@ -93,36 +93,32 @@ class PyLModel(pl.LightningModule):
         t = t.requires_grad_(True)
         u, v, p = self.model(x, y, t)
 
-        # scaling factors from normalization chain rule
-        sx = (self.model.x_max - self.model.x_min) / 2.0  # 1.1
-        sy = (self.model.y_max - self.model.y_min) / 2.0  # 0.205
-        st = (self.model.t_max - self.model.t_min) / 2.0  # 5.0
+        nu = self.nu
 
         def grad(f, var):
             return torch.autograd.grad(
                 f, var, grad_outputs=torch.ones_like(f), create_graph=True
             )[0]
 
-        # first order — autograd gives du/dx = (1/sx) * du/dx_norm
-        # so to get physical derivative multiply by sx
-        u_x = grad(u, x) * sx
-        u_y = grad(u, y) * sy
-        u_t = grad(u, t) * st
-        v_x = grad(v, x) * sx
-        v_y = grad(v, y) * sy
-        v_t = grad(v, t) * st
-        p_x = grad(p, x) * sx
-        p_y = grad(p, y) * sy
+        # first order
+        u_x = grad(u, x)
+        u_y = grad(u, y)
+        u_t = grad(u, t)
+        v_x = grad(v, x)
+        v_y = grad(v, y)
+        v_t = grad(v, t)
+        p_x = grad(p, x)
+        p_y = grad(p, y)
 
         # second order
-        u_xx = grad(u_x, x) * sx
-        u_yy = grad(u_y, y) * sy
-        v_xx = grad(v_x, x) * sx
-        v_yy = grad(v_y, y) * sy
+        u_xx = grad(u_x, x)
+        u_yy = grad(u_y, y)
+        v_xx = grad(v_x, x)
+        v_yy = grad(v_y, y)
 
         continuity = u_x + v_y
-        momentum_u = u_t + u*u_x + v*u_y + p_x - (1.0/self.Re)*(u_xx + u_yy)
-        momentum_v = v_t + u*v_x + v*v_y + p_y - (1.0/self.Re)*(v_xx + v_yy)
+        momentum_u = u_t + u*u_x + v*u_y + p_x - nu*(u_xx + u_yy)
+        momentum_v = v_t + u*v_x + v*v_y + p_y - nu*(v_xx + v_yy)
 
         pressure_gauge_loss = p.mean()**2
 

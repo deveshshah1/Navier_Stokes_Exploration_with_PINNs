@@ -17,6 +17,7 @@ dataset_configs:
       t_max: 10.0
     steps_per_epoch: 100
     reynolds_number: 20
+    nu: 0.001 # kinematic viscosity nu = U_mean * D / Re, where D=0.1m U_mean=0.2m/s Re=20
 
 training_hyperparameters:
   desc: Training Hyperparameters
