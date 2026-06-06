@@ -68,8 +68,6 @@ class PyLModel(pl.LightningModule):
         xo, yo, to = bc_points["outlet"]
         _, _, po_pred = self.model(xo, yo, to)
         outlet_loss = torch.mean(po_pred**2)
-        # upweight outlet pressure loss
-        outlet_loss *= 20.0
 
         # no-slip walls (ui = vi = 0)
         xw, yw, tw = bc_points["noslip"]
