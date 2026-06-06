@@ -32,7 +32,6 @@ loss_weights:
     lambda_physics: 2.0
     lambda_bc: 40.0
     lambda_ic: 1.0
-    lambda_pressure_in_physics: 0.5
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
