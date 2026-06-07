@@ -9,11 +9,6 @@ with open("./configs/config_training.yaml", "r") as f:
     config_training = {k: v["value"] for k, v in config_training.items()}
 
 
-# Schäfer-Turek geometry constants
-CYL_CX, CYL_CY, CYL_R = 0.2, 0.2, 0.05  # cylinder center and radius
-H = 0.41  # channel height
-
-
 class Cylinder2DDataset(torch.utils.data.Dataset):
     """
     Physics-only dataset for the 2-D cylinder PINN.
@@ -34,6 +29,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
             "t_max": 10.0,
         },
         U_mean: float = 0.2,  # mean inlet velocity (for ICs and inlet BC)
+        cylinder_geometry: dict = {"cx": 0.2, "cy": 0.2, "r": 0.05},
         steps_per_epoch: int = 100,
         ground_truth_dataset_path: str = None,
         use_ground_truth_dataset: bool = False,
@@ -54,6 +50,11 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         self.t_max = domain_bounds["t_max"]
         self.U_mean = U_mean
 
+        self.cyl_cx = cylinder_geometry["cx"]
+        self.cyl_cy = cylinder_geometry["cy"]
+        self.cyl_r = cylinder_geometry["r"]
+        self.H = self.y_max - self.y_min
+
         self.use_ground_truth_dataset = use_ground_truth_dataset
         if self.use_ground_truth_dataset:
             self.dataset_df = pd.read_parquet(ground_truth_dataset_path)
@@ -65,13 +66,13 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
 
     def _remove_cylinder_interior(self, x, y, *rest):
         """Drop any points that fall inside the cylinder."""
-        inside = ((x - CYL_CX) ** 2 + (y - CYL_CY) ** 2) < CYL_R**2
+        inside = ((x - self.cyl_cx) ** 2 + (y - self.cyl_cy) ** 2) < self.cyl_r**2
         mask = ~inside
         return (x[mask], y[mask]) + tuple(t[mask] for t in rest)
 
-    def inlet_u(self, y, H=H):
+    def inlet_u(self, y):
         """Schäfer-Turek parabolic inlet: u = 6 U_mean y(H-y) / H²"""
-        return 6.0 * self.U_mean * y * (H - y) / H**2
+        return 6.0 * self.U_mean * y * (self.H - y) / self.H**2
 
     def make_collocation_points(self):
         """Uniform random points over the fluid domain"""
@@ -113,8 +114,8 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
 
         # No-slip: cylinder surface (parametric)
         theta = torch.empty(n_s).uniform_(0.0, 2.0 * torch.pi)
-        x_cyl = CYL_CX + CYL_R * torch.cos(theta)
-        y_cyl = CYL_CY + CYL_R * torch.sin(theta)
+        x_cyl = self.cyl_cx + self.cyl_r * torch.cos(theta)
+        y_cyl = self.cyl_cy + self.cyl_r * torch.sin(theta)
 
         # combine no-slip
         xn = torch.cat([x_bot, x_top, x_cyl])
@@ -166,6 +167,7 @@ if __name__ == "__main__":
         num_noslip_points=300,
         num_ic_points=500,
         steps_per_epoch=4,
+        cylinder_geometry=config_training["dataset_configs"]["cylinder_geometry"],
     )
 
     loader = torch.utils.data.DataLoader(
@@ -192,7 +194,9 @@ if __name__ == "__main__":
     ax = axes[0]
     sc = ax.scatter(xc, yc, c=tc, s=3, cmap="viridis", label="collocation")
     plt.colorbar(sc, ax=ax, label="t")
-    cyl = plt.Circle((CYL_CX, CYL_CY), CYL_R, color="gray", zorder=5)
+    cyl = plt.Circle(
+        (dataset.cyl_cx, dataset.cyl_cy), dataset.cyl_r, color="gray", zorder=5
+    )
     ax.add_patch(cyl)
     ax.set_title("Collocation points (coloured by t)")
     ax.set_aspect("equal")
@@ -208,7 +212,9 @@ if __name__ == "__main__":
     ]:
         ax.scatter(x, y, s=6, label=name, color=colours[name], alpha=0.7)
     ax.scatter(x_ic, y_ic, s=3, label="IC (t=0)", color="tab:green", alpha=0.5)
-    cyl2 = plt.Circle((CYL_CX, CYL_CY), CYL_R, color="gray", zorder=5)
+    cyl2 = plt.Circle(
+        (dataset.cyl_cx, dataset.cyl_cy), dataset.cyl_r, color="gray", zorder=5
+    )
     ax.add_patch(cyl2)
     ax.set_title("Boundary & IC points")
     ax.set_aspect("equal")
