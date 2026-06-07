@@ -27,7 +27,7 @@ training_hyperparameters:
   desc: Training Hyperparameters
   value:
     batch_size: 1
-    num_epochs: 2000
+    num_epochs: 5000
     learning_rate: 0.001
 
 loss_weights:
