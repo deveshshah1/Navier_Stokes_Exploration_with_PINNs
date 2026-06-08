@@ -30,6 +30,8 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         },
         U_mean: float = 0.2,  # mean inlet velocity (for ICs and inlet BC)
         cylinder_geometry: dict = {"cx": 0.2, "cy": 0.2, "r": 0.05},
+        num_near_cylinder_points: int = 1000,
+        near_cylinder_radius_factor: float = 4.0,
         steps_per_epoch: int = 100,
         ground_truth_dataset_path: str = None,
         use_ground_truth_dataset: bool = False,
@@ -54,6 +56,8 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         self.cyl_cy = cylinder_geometry["cy"]
         self.cyl_r = cylinder_geometry["r"]
         self.H = self.y_max - self.y_min
+        self.num_near_cylinder_points = num_near_cylinder_points
+        self.near_cylinder_radius_factor = near_cylinder_radius_factor
 
         self.use_ground_truth_dataset = use_ground_truth_dataset
         if self.use_ground_truth_dataset:
@@ -75,11 +79,39 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         return 6.0 * self.U_mean * y * (self.H - y) / self.H**2
 
     def make_collocation_points(self):
-        """Uniform random points over the fluid domain"""
+        """
+        Uniform random points over the fluid domain, plus concentrated points
+        near the cylinder where gradients are steepest.
+        """
+        # Background uniform points
         x = torch.empty(self.num_collocation_points).uniform_(self.x_min, self.x_max)
         y = torch.empty(self.num_collocation_points).uniform_(self.y_min, self.y_max)
         t = torch.empty(self.num_collocation_points).uniform_(self.t_min, self.t_max)
         x, y, t = self._remove_cylinder_interior(x, y, t)
+
+        if self.num_near_cylinder_points > 0:
+            r_near = self.near_cylinder_radius_factor * self.cyl_r
+            # Rejection-sample from bounding box clipped to domain, keep annular region
+            n_draw = self.num_near_cylinder_points * 3
+            xn = torch.empty(n_draw).uniform_(
+                max(self.x_min, self.cyl_cx - r_near),
+                min(self.x_max, self.cyl_cx + r_near),
+            )
+            yn = torch.empty(n_draw).uniform_(
+                max(self.y_min, self.cyl_cy - r_near),
+                min(self.y_max, self.cyl_cy + r_near),
+            )
+            tn = torch.empty(n_draw).uniform_(self.t_min, self.t_max)
+            dist2 = (xn - self.cyl_cx) ** 2 + (yn - self.cyl_cy) ** 2
+            # Keep points in the annulus (outside cylinder, inside r_near)
+            mask = (dist2 >= self.cyl_r ** 2) & (dist2 <= r_near ** 2)
+            xn, yn, tn = xn[mask][: self.num_near_cylinder_points], \
+                         yn[mask][: self.num_near_cylinder_points], \
+                         tn[mask][: self.num_near_cylinder_points]
+            x = torch.cat([x, xn])
+            y = torch.cat([y, yn])
+            t = torch.cat([t, tn])
+
         return x, y, t
 
     def make_boundary_points(self):

@@ -4,6 +4,8 @@ dataset_configs:
     ground_truth_dataset_path: "./dataset/cylinder_Re20_groundtruth.parquet" # LOCAL
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
     num_collocation_points: 8000
+    num_near_cylinder_points: 2000
+    near_cylinder_radius_factor: 4.0
     num_bc_points: 500
     num_noslip_points: 500
     num_ic_points: 300
