@@ -4,7 +4,7 @@ dataset_configs:
     ground_truth_dataset_path: "./dataset/cylinder_Re20_groundtruth.parquet" # LOCAL
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
     num_collocation_points: 8000
-    num_near_cylinder_points: 2000
+    num_near_cylinder_points: 0
     near_cylinder_radius_factor: 4.0
     num_bc_points: 500
     num_noslip_points: 500
@@ -29,7 +29,7 @@ training_hyperparameters:
   desc: Training Hyperparameters
   value:
     batch_size: 1
-    num_epochs: 5000
+    num_epochs: 2000
     learning_rate: 0.001
 
 loss_weights:
@@ -37,7 +37,7 @@ loss_weights:
   value:
     lambda_physics: 3.0
     lambda_bc: 5.0
-    lambda_ic: 0.3
+    lambda_ic: 0.2
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters

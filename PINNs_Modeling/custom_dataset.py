@@ -145,7 +145,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         y_top = torch.full((n_s,), self.y_max)
 
         # No-slip: cylinder surface (parametric)
-        n_s_cyl = n_s * 3
+        n_s_cyl = n_s * 1
         theta = torch.empty(n_s_cyl).uniform_(0.0, 2.0 * torch.pi)
         x_cyl = self.cyl_cx + self.cyl_r * torch.cos(theta)
         y_cyl = self.cyl_cy + self.cyl_r * torch.sin(theta)
