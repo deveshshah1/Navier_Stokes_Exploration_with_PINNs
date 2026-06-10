@@ -1,7 +1,7 @@
 dataset_configs:
   desc: Ground Truth Dataset Configurations
   value:
-    ground_truth_dataset_path: "./dataset/cylinder_Re20_groundtruth.parquet" # LOCAL
+    ground_truth_dataset_path: "./dataset/cylinder_Re100_groundtruth.parquet" # LOCAL
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
     num_collocation_points: 8000
     num_near_cylinder_points: 0
@@ -9,21 +9,21 @@ dataset_configs:
     num_bc_points: 500
     num_noslip_points: 500
     num_ic_points: 300
-    U_mean: 0.2
+    U_mean: 1.0
     domain_bounds:
       x_min: 0.0
       x_max: 2.2
       y_min: 0.0
       y_max: 0.41
       t_min: 0.0
-      t_max: 10.0
+      t_max: 8.0
     cylinder_geometry:
       cx: 0.2
       cy: 0.2
       r: 0.05
     steps_per_epoch: 100
-    reynolds_number: 20
-    nu: 0.001 # kinematic viscosity nu = U_mean * D / Re, where D=0.1m U_mean=0.2m/s Re=20
+    reynolds_number: 100
+    nu: 0.001 # kinematic viscosity nu = U_mean * D / Re, where D=0.1m U_mean=1.0m/s Re=100
 
 training_hyperparameters:
   desc: Training Hyperparameters
@@ -49,7 +49,7 @@ experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re20_baseline"
+    experiment_name: "re100_baseline"
     use_wandb: True
 
 wandb_config:
