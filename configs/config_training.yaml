@@ -44,12 +44,20 @@ model_architecture_hyperparameters:
   value:
     hidden_layers: 8
     hidden_width: 128
+    num_fourier_features: 64
+    sigma_spatial: 10.0
+    sigma_time: 5.0
+
+exploratory_variables:
+  desc: Feature flags for architectural experiments
+  value:
+    use_fourier_features: true
 
 experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_baseline"
+    experiment_name: "re100_fourierfeatures"
     use_wandb: True
 
 wandb_config:

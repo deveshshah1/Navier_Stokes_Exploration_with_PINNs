@@ -44,13 +44,9 @@ class PyLModel(pl.LightningModule):
         self.wandb_logger = wandb_logger
 
         self.model = BaselineModel(
-            hidden_layers=config_training["model_architecture_hyperparameters"][
-                "hidden_layers"
-            ],
-            hidden_width=config_training["model_architecture_hyperparameters"][
-                "hidden_width"
-            ],
             domain_bounds=config_training["dataset_configs"]["domain_bounds"],
+            **config_training["model_architecture_hyperparameters"],
+            **config_training.get("exploratory_variables", {}),
         )
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
@@ -82,7 +78,7 @@ class PyLModel(pl.LightningModule):
         ui_pred, vi_pred, _ = self.model(x, y, t)
         ic_loss = torch.mean(ui_pred**2) + torch.mean(vi_pred**2)
         return ic_loss
-    
+
     def physics_loss(self, collocation_points):
         x, y, t = collocation_points
         x = x.requires_grad_(True)
@@ -114,15 +110,15 @@ class PyLModel(pl.LightningModule):
         v_yy = grad(v_y, y)
 
         continuity = u_x + v_y
-        momentum_u = u_t + u*u_x + v*u_y + p_x - nu*(u_xx + u_yy)
-        momentum_v = v_t + u*v_x + v*v_y + p_y - nu*(v_xx + v_yy)
+        momentum_u = u_t + u * u_x + v * u_y + p_x - nu * (u_xx + u_yy)
+        momentum_v = v_t + u * v_x + v * v_y + p_y - nu * (v_xx + v_yy)
 
         return (
             torch.mean(continuity**2)
             + torch.mean(momentum_u**2)
             + torch.mean(momentum_v**2)
         )
-        
+
     def training_step(self, batch, batch_idx):
         collocation_points = batch["collocation"]
         bc_points = batch["boundary"]
