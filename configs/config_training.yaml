@@ -44,14 +44,18 @@ model_architecture_hyperparameters:
   value:
     hidden_layers: 8
     hidden_width: 128
-    num_fourier_features: 64
-    sigma_spatial: 10.0
-    sigma_time: 5.0
 
 exploratory_variables:
   desc: Feature flags for architectural experiments
   value:
+    # Fourier Features
     use_fourier_features: true
+    num_fourier_features: 64
+    sigma_spatial: 10.0
+    sigma_time: 5.0
+    # Causal Weighting
+    use_causal_weighting: false
+    causal_eps: 1.0  # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
 
 experiment_details:
   desc: Experiment Details

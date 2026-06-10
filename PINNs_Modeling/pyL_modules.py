@@ -53,6 +53,10 @@ class PyLModel(pl.LightningModule):
         self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
         self.nu = config_training["dataset_configs"]["nu"]
 
+        exp_vars = config_training.get("exploratory_variables", {})
+        self.use_causal_weighting = exp_vars.get("use_causal_weighting", False)
+        self.causal_eps = exp_vars.get("causal_eps", 1.0)
+
     def bc_loss(self, bc_points):
         # inlet (ui = Schäfer-Turek parabolic, vi = 0)
         xi, yi, ti = bc_points["inlet"]
@@ -81,6 +85,11 @@ class PyLModel(pl.LightningModule):
 
     def physics_loss(self, collocation_points):
         x, y, t = collocation_points
+
+        if self.use_causal_weighting:
+            sort_idx = torch.argsort(t)
+            x, y, t = x[sort_idx], y[sort_idx], t[sort_idx]
+
         x = x.requires_grad_(True)
         y = y.requires_grad_(True)
         t = t.requires_grad_(True)
@@ -113,11 +122,16 @@ class PyLModel(pl.LightningModule):
         momentum_u = u_t + u * u_x + v * u_y + p_x - nu * (u_xx + u_yy)
         momentum_v = v_t + u * v_x + v * v_y + p_y - nu * (v_xx + v_yy)
 
-        return (
-            torch.mean(continuity**2)
-            + torch.mean(momentum_u**2)
-            + torch.mean(momentum_v**2)
-        )
+        per_point = continuity**2 + momentum_u**2 + momentum_v**2
+
+        if self.use_causal_weighting:
+            # w_i = exp(-eps * sum of residuals at all t' < t_i)
+            cumsum = torch.cumsum(per_point.detach(), dim=0)
+            cumsum = torch.cat([torch.zeros(1, device=t.device), cumsum[:-1]])
+            weights = torch.exp(-self.causal_eps * cumsum)
+            return (weights * per_point).mean(), weights.min()
+
+        return per_point.mean(), None
 
     def training_step(self, batch, batch_idx):
         collocation_points = batch["collocation"]
@@ -127,7 +141,7 @@ class PyLModel(pl.LightningModule):
         inlet_loss, outlet_loss, noslip_loss = self.bc_loss(bc_points)
         bc_loss = inlet_loss + outlet_loss + noslip_loss
         ic_loss = self.ic_loss(ic_points)
-        physics_loss = self.physics_loss(collocation_points)
+        physics_loss, causal_weight_min = self.physics_loss(collocation_points)
 
         loss = (
             self.lambda_physics * physics_loss
@@ -150,6 +164,8 @@ class PyLModel(pl.LightningModule):
             )
 
         log_loss("train/physics_loss", physics_loss)
+        if causal_weight_min is not None:
+            log_loss("train/causal_weight_min", causal_weight_min)
         log_loss("train/bc_loss", bc_loss)
         log_loss("train/ic_loss", ic_loss)
         log_loss("train/inlet_loss", inlet_loss)
