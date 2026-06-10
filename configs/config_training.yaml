@@ -3,12 +3,12 @@ dataset_configs:
   value:
     ground_truth_dataset_path: "./dataset/cylinder_Re100_groundtruth.parquet" # LOCAL
     # base_dataset_path: "/content/drive/MyDrive/Programming/dataset/" # GOOGLE COLAB
-    num_collocation_points: 8000
-    num_near_cylinder_points: 0
-    near_cylinder_radius_factor: 4.0
-    num_bc_points: 500
-    num_noslip_points: 500
-    num_ic_points: 300
+    num_collocation_points: 12000
+    num_near_cylinder_points: 2000
+    near_cylinder_radius_factor: 3.0
+    num_bc_points: 800
+    num_noslip_points: 800
+    num_ic_points: 800
     U_mean: 1.0
     domain_bounds:
       x_min: 0.0
@@ -37,7 +37,7 @@ loss_weights:
   value:
     lambda_physics: 3.0
     lambda_bc: 5.0
-    lambda_ic: 0.2
+    lambda_ic: 3.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
@@ -55,8 +55,8 @@ exploratory_variables:
     sigma_time: 5.0
     # Causal Weighting
     use_causal_weighting: false
-    causal_eps: 1.0  # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
-
+    causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
+    num_causal_bins: 20 
 experiment_details:
   desc: Experiment Details
   value:

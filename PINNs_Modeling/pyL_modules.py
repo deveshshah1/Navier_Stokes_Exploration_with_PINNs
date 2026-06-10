@@ -56,6 +56,9 @@ class PyLModel(pl.LightningModule):
         exp_vars = config_training.get("exploratory_variables", {})
         self.use_causal_weighting = exp_vars.get("use_causal_weighting", False)
         self.causal_eps = exp_vars.get("causal_eps", 1.0)
+        self.num_causal_bins = exp_vars.get("num_causal_bins", 20)
+        self.t_min = config_training["dataset_configs"]["domain_bounds"]["t_min"]
+        self.t_max = config_training["dataset_configs"]["domain_bounds"]["t_max"]
 
     def bc_loss(self, bc_points):
         # inlet (ui = Schäfer-Turek parabolic, vi = 0)
@@ -87,8 +90,9 @@ class PyLModel(pl.LightningModule):
         x, y, t = collocation_points
 
         if self.use_causal_weighting:
-            sort_idx = torch.argsort(t)
-            x, y, t = x[sort_idx], y[sort_idx], t[sort_idx]
+            M = self.num_causal_bins
+            bin_width = (self.t_max - self.t_min) / M
+            bin_idx = torch.floor((t - self.t_min) / bin_width).long().clamp(0, M - 1)
 
         x = x.requires_grad_(True)
         y = y.requires_grad_(True)
@@ -125,11 +129,21 @@ class PyLModel(pl.LightningModule):
         per_point = continuity**2 + momentum_u**2 + momentum_v**2
 
         if self.use_causal_weighting:
-            # w_i = exp(-eps * sum of residuals at all t' < t_i)
-            cumsum = torch.cumsum(per_point.detach(), dim=0)
-            cumsum = torch.cat([torch.zeros(1, device=t.device), cumsum[:-1]])
-            weights = torch.exp(-self.causal_eps * cumsum)
-            return (weights * per_point).mean(), weights.min()
+            # Mean residual per bin, then causal cumsum over bins
+            r = per_point.detach()
+            bin_sum = torch.zeros(M, device=t.device).scatter_add_(0, bin_idx, r)
+            bin_cnt = torch.zeros(M, device=t.device).scatter_add_(
+                0, bin_idx, torch.ones_like(r)
+            )
+            bin_mean = bin_sum / bin_cnt.clamp(min=1.0)
+
+            # Shift cumsum so bin k sees only mean residuals from bins 0..k-1
+            bin_cumsum = torch.cumsum(bin_mean, dim=0)
+            bin_cumsum = torch.cat([torch.zeros(1, device=t.device), bin_cumsum[:-1]])
+            bin_weights = torch.exp(-self.causal_eps * bin_cumsum)
+
+            point_weights = bin_weights[bin_idx]
+            return (point_weights * per_point).mean(), point_weights.min()
 
         return per_point.mean(), None
 
