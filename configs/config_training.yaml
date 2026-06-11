@@ -30,7 +30,7 @@ training_hyperparameters:
   value:
     batch_size: 1
     num_epochs: 2000
-    learning_rate: 0.001
+    learning_rate: 0.002
 
 loss_weights:
   desc: Loss Weights for Different Components
@@ -42,7 +42,7 @@ loss_weights:
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
   value:
-    hidden_layers: 8
+    hidden_layers: 6
     hidden_width: 128
 
 exploratory_variables:
@@ -51,8 +51,8 @@ exploratory_variables:
     # Fourier Features
     use_fourier_features: true
     num_fourier_features: 64
-    sigma_spatial: 10.0
-    sigma_time: 5.0
+    sigma_spatial: 2.0
+    sigma_time: 1.0
     # Causal Weighting
     use_causal_weighting: false
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
