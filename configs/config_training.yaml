@@ -54,14 +54,14 @@ exploratory_variables:
     sigma_spatial: 2.0
     sigma_time: 1.0
     # Causal Weighting
-    use_causal_weighting: false
+    use_causal_weighting: true
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
     num_causal_bins: 20 
 experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_fourierfeatures"
+    experiment_name: "re100_ff_causaltime"
     use_wandb: True
 
 wandb_config:
