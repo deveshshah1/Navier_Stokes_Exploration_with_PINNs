@@ -42,6 +42,8 @@ class BaselineModel(nn.Module):
         num_fourier_features=64,
         sigma_spatial=10.0,
         sigma_time=5.0,
+        use_hard_bc_cylinder=False,
+        cylinder_geometry={"cx": 0.2, "cy": 0.2, "r": 0.05},
         **kwargs,
     ):
         super().__init__()
@@ -51,6 +53,11 @@ class BaselineModel(nn.Module):
             )
 
         self.use_fourier_features = use_fourier_features
+        self.use_hard_bc_cylinder = use_hard_bc_cylinder
+        if use_hard_bc_cylinder:
+            self.register_buffer("cyl_cx", torch.tensor(cylinder_geometry["cx"], dtype=torch.float32))
+            self.register_buffer("cyl_cy", torch.tensor(cylinder_geometry["cy"], dtype=torch.float32))
+            self.register_buffer("cyl_r",  torch.tensor(cylinder_geometry["r"],  dtype=torch.float32))
 
         if use_fourier_features:
             self.xy_encoder = FourierFeatureEncoder(
@@ -78,6 +85,16 @@ class BaselineModel(nn.Module):
         self.register_buffer("t_min", torch.tensor(domain_bounds["t_min"]))
         self.register_buffer("t_max", torch.tensor(domain_bounds["t_max"]))
 
+    def _cylinder_wall_distance(self, x, y):
+        """
+        Smooth mask in [0, 1]: 0 on the cylinder surface, →1 far away.
+        Multiplying u and v by this enforces no-slip structurally.
+        Uses physical (unnormalized) coordinates since cylinder geometry is in physical space.
+        """
+        r_dist = torch.sqrt((x - self.cyl_cx) ** 2 + (y - self.cyl_cy) ** 2)
+        # alpha=10 confines suppression to ~0.2r from the surface, leaving the near-wake unaffected
+        return torch.tanh(10.0 * (r_dist - self.cyl_r) / self.cyl_r)
+
     def _normalize(self, x, y, t):
         x_norm = 2.0 * (x - self.x_min) / (self.x_max - self.x_min) - 1.0
         y_norm = 2.0 * (y - self.y_min) / (self.y_max - self.y_min) - 1.0
@@ -102,7 +119,14 @@ class BaselineModel(nn.Module):
             encoded = torch.stack([x_norm, y_norm, t_norm], dim=-1)
 
         output = self.net(encoded)
-        u, v, p = output[:, 0], output[:, 1], output[:, 2]
+        u_raw, v_raw, p = output[:, 0], output[:, 1], output[:, 2]
+
+        if self.use_hard_bc_cylinder:
+            d = self._cylinder_wall_distance(x, y)
+            u, v = d * u_raw, d * v_raw
+        else:
+            u, v = u_raw, v_raw
+
         return u, v, p
 
 

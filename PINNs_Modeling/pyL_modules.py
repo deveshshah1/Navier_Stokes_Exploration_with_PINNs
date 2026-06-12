@@ -45,6 +45,7 @@ class PyLModel(pl.LightningModule):
 
         self.model = BaselineModel(
             domain_bounds=config_training["dataset_configs"]["domain_bounds"],
+            cylinder_geometry=config_training["dataset_configs"]["cylinder_geometry"],
             **config_training["model_architecture_hyperparameters"],
             **config_training.get("exploratory_variables", {}),
         )
