@@ -20,6 +20,7 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         num_bc_points: int = 200,  # per boundary (inlet, outlet)
         num_noslip_points: int = 300,  # per no-slip surface (bottom, top, cyl)
         num_ic_points: int = 500,
+        num_data_points: int = 2000,  # for sparse data supervision
         domain_bounds: dict = {
             "x_min": 0.0,
             "x_max": 2.2,
@@ -63,6 +64,23 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         if self.use_ground_truth_dataset:
             self.dataset_df = pd.read_parquet(ground_truth_dataset_path)
 
+        # Sparse data supervision
+        if num_data_points > 0:
+            df = pd.read_parquet(ground_truth_dataset_path)
+            rows = df[["x", "y", "t", "Ux", "Uy", "p", "test_point_id"]].sample(
+                n=num_data_points, random_state=42
+            )
+            self.supervision_points = (
+                torch.tensor(rows["x"].values, dtype=torch.float32),
+                torch.tensor(rows["y"].values, dtype=torch.float32),
+                torch.tensor(rows["t"].values, dtype=torch.float32),
+                torch.tensor(rows["Ux"].values, dtype=torch.float32),
+                torch.tensor(rows["Uy"].values, dtype=torch.float32),
+                torch.tensor(rows["p"].values, dtype=torch.float32),
+            )
+        else:
+            self.supervision_points = None
+
     def __len__(self):
         if self.use_ground_truth_dataset:
             return len(self.dataset_df)
@@ -104,10 +122,12 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
             tn = torch.empty(n_draw).uniform_(self.t_min, self.t_max)
             dist2 = (xn - self.cyl_cx) ** 2 + (yn - self.cyl_cy) ** 2
             # Keep points in the annulus (outside cylinder, inside r_near)
-            mask = (dist2 >= self.cyl_r ** 2) & (dist2 <= r_near ** 2)
-            xn, yn, tn = xn[mask][: self.num_near_cylinder_points], \
-                         yn[mask][: self.num_near_cylinder_points], \
-                         tn[mask][: self.num_near_cylinder_points]
+            mask = (dist2 >= self.cyl_r**2) & (dist2 <= r_near**2)
+            xn, yn, tn = (
+                xn[mask][: self.num_near_cylinder_points],
+                yn[mask][: self.num_near_cylinder_points],
+                tn[mask][: self.num_near_cylinder_points],
+            )
             x = torch.cat([x, xn])
             y = torch.cat([y, yn])
             t = torch.cat([t, tn])
@@ -186,11 +206,13 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
         if self.use_ground_truth_dataset:
             return self.get_ground_truth_points(idx)
         else:
-            return {
+            batch = {
                 "collocation": self.make_collocation_points(),
                 "boundary": self.make_boundary_points(),
                 "ic": self.make_ic_points(),
+                "supervision": self.supervision_points,
             }
+            return batch
 
 
 if __name__ == "__main__":

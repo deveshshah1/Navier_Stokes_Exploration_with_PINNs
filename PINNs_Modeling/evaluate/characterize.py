@@ -21,20 +21,34 @@ with open("./configs/config_training.yaml", "r") as file:
 
 def characterize(ckpt_to_use):
     model_dir = config_training["experiment_details"]["model_dir"]
-    exp_dir   = config_training["experiment_details"]["experiment_name"]
-    results_dir    = os.path.join(model_dir, exp_dir, f"predictions{ckpt_to_use}")
+    exp_dir = config_training["experiment_details"]["experiment_name"]
+    results_dir = os.path.join(model_dir, exp_dir, f"predictions{ckpt_to_use}")
     benchmarks_dir = os.path.join(model_dir, exp_dir, f"benchmarks{ckpt_to_use}")
     os.makedirs(benchmarks_dir, exist_ok=True)
 
     df = pd.read_parquet(os.path.join(results_dir, "predictions.parquet"))
 
-    dataset_cfg       = config_training["dataset_configs"]
+    # Exclude training supervision points from evaluation to avoid data leakage.
+    dataset_cfg = config_training["dataset_configs"]
+    num_data_points = dataset_cfg.get("num_data_points", 0)
+    if num_data_points > 0:
+        gt_path = dataset_cfg["ground_truth_dataset_path"]
+        gt_df = pd.read_parquet(gt_path, columns=["test_point_id"])
+        train_ids = set(
+            gt_df.sample(n=num_data_points, random_state=42)["test_point_id"].tolist()
+        )
+        before = len(df)
+        df = df[~df["test_point_id"].isin(train_ids)].reset_index(drop=True)
+        print(
+            f"Excluded {before - len(df)} supervision points from evaluation ({before - len(df)} / {before} = {(before - len(df)) / before:.3%})"
+        )
+
     cylinder_geometry = dataset_cfg["cylinder_geometry"]
-    domain_bounds     = dataset_cfg["domain_bounds"]
-    nu                = dataset_cfg["nu"]
-    U_mean            = dataset_cfg["U_mean"]
-    Re                = dataset_cfg["reynolds_number"]
-    D                 = 2 * cylinder_geometry["r"]  # cylinder diameter
+    domain_bounds = dataset_cfg["domain_bounds"]
+    nu = dataset_cfg["nu"]
+    U_mean = dataset_cfg["U_mean"]
+    Re = dataset_cfg["reynolds_number"]
+    D = 2 * cylinder_geometry["r"]  # cylinder diameter
 
     is_steady = Re == 20
 
@@ -66,7 +80,15 @@ def characterize(ckpt_to_use):
 
     # --- PDE residual maps ---
     for t in viz_snapshots:
-        plot_pde_residuals(df, benchmarks_dir, nu, cylinder_geometry, domain_bounds, t=t, steady=is_steady)
+        plot_pde_residuals(
+            df,
+            benchmarks_dir,
+            nu,
+            cylinder_geometry,
+            domain_bounds,
+            t=t,
+            steady=is_steady,
+        )
 
     # --- Strouhal number (Re=100 only) ---
     if not is_steady:

@@ -52,6 +52,7 @@ class PyLModel(pl.LightningModule):
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
         self.lambda_ic = config_training["loss_weights"]["lambda_ic"]
+        self.lambda_data = config_training["loss_weights"]["lambda_data"]
         self.nu = config_training["dataset_configs"]["nu"]
 
         exp_vars = config_training.get("exploratory_variables", {})
@@ -61,12 +62,16 @@ class PyLModel(pl.LightningModule):
         self.t_min = config_training["dataset_configs"]["domain_bounds"]["t_min"]
         self.t_max = config_training["dataset_configs"]["domain_bounds"]["t_max"]
 
+        self.mse_loss = torch.nn.MSELoss()
+
     def bc_loss(self, bc_points):
         # inlet (ui = Schäfer-Turek parabolic, vi = 0)
         xi, yi, ti = bc_points["inlet"]
         ui_pred, vi_pred, _ = self.model(xi, yi, ti)
         ui_true = bc_points["inlet_u"]
-        inlet_loss = torch.mean((ui_pred - ui_true) ** 2) + torch.mean(vi_pred**2)
+        inlet_loss = self.mse_loss(ui_pred, ui_true) + self.mse_loss(
+            vi_pred, torch.zeros_like(vi_pred)
+        )
 
         # outlet (po = 0)
         xo, yo, to = bc_points["outlet"]
@@ -148,20 +153,32 @@ class PyLModel(pl.LightningModule):
 
         return per_point.mean(), None
 
+    def data_loss(self, supervision_points):
+        x, y, t, u_true, v_true, p_true = supervision_points
+        u_pred, v_pred, p_pred = self.model(x, y, t)
+        return (
+            self.mse_loss(u_pred, u_true)
+            + self.mse_loss(v_pred, v_true)
+            + self.mse_loss(p_pred, p_true)
+        )
+
     def training_step(self, batch, batch_idx):
         collocation_points = batch["collocation"]
         bc_points = batch["boundary"]
         ic_points = batch["ic"]
+        supervision_points = batch["supervision"]
 
         inlet_loss, outlet_loss, noslip_loss = self.bc_loss(bc_points)
         bc_loss = inlet_loss + outlet_loss + noslip_loss
         ic_loss = self.ic_loss(ic_points)
         physics_loss, causal_weight_min = self.physics_loss(collocation_points)
+        data_loss = self.data_loss(supervision_points)
 
         loss = (
             self.lambda_physics * physics_loss
             + self.lambda_bc * bc_loss
             + self.lambda_ic * ic_loss
+            + self.lambda_data * data_loss
         )
 
         self.log(
@@ -186,6 +203,7 @@ class PyLModel(pl.LightningModule):
         log_loss("train/inlet_loss", inlet_loss)
         log_loss("train/outlet_loss", outlet_loss)
         log_loss("train/noslip_loss", noslip_loss)
+        log_loss("train/data_loss", data_loss)
 
         # Log histograms of predictions and losses to W&B
         if self.wandb_logger is not None and batch_idx % 10 == 0:

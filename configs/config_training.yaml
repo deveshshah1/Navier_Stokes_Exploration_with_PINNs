@@ -9,6 +9,7 @@ dataset_configs:
     num_bc_points: 800
     num_noslip_points: 800
     num_ic_points: 800
+    num_data_points: 40000
     U_mean: 1.0
     domain_bounds:
       x_min: 0.0
@@ -38,6 +39,7 @@ loss_weights:
     lambda_physics: 3.0
     lambda_bc: 5.0
     lambda_ic: 3.0
+    lambda_data: 3.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
@@ -58,13 +60,13 @@ exploratory_variables:
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
     num_causal_bins: 20 
     # Hard Boundary Conditions
-    use_hard_bc_cylinder: true 
+    use_hard_bc_cylinder: false 
 
 experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_ff_causaltime"
+    experiment_name: "re100_with_supervision_1pct"
     use_wandb: True
 
 wandb_config:
