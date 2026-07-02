@@ -14,4 +14,4 @@ exploratory_variables:
     num_causal_bins: 20 
 
     # (HBC) Hard Boundary Conditions
-    use_hard_bc_cylinder: true 
+    use_hard_bc_cylinder: false 

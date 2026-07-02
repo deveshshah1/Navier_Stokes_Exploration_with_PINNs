@@ -39,7 +39,7 @@ loss_weights:
     lambda_physics: 3.0
     lambda_bc: 5.0
     lambda_ic: 3.0
-    lambda_data: 2.0
+    lambda_data: 4.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
@@ -51,7 +51,7 @@ experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_withSup_HBC"
+    experiment_name: "re100_withSup_baseline"
     use_wandb: True
 
 wandb_config:
