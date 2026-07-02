@@ -2,16 +2,16 @@ exploratory_variables:
   desc: Feature flags for architectural experiments
   value:
   
-    # Fourier Features
+    # (FF) Fourier Features
     use_fourier_features: false
     num_fourier_features: 64
     sigma_spatial: 2.0
     sigma_time: 1.0
 
-    # Causal Weighting
+    # (CW) Causal Weighting
     use_causal_weighting: false
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
     num_causal_bins: 20 
 
-    # Hard Boundary Conditions
+    # (HBC) Hard Boundary Conditions
     use_hard_bc_cylinder: false 
