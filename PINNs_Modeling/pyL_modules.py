@@ -9,8 +9,12 @@ from model import BaselineModel
 
 # Global config
 with open("./configs/config_training.yaml", "r") as file:
-    config_training = yaml.safe_load(file)
-    config_training = {k: v["value"] for k, v in config_training.items()}
+    _training_config = yaml.safe_load(file)
+    config_training = {k: v["value"] for k, v in _training_config.items()}
+
+with open("./configs/config_experimental_variables.yaml", "r") as file:
+    _exp_config = yaml.safe_load(file)
+    config_exp = {k: v["value"] for k, v in _exp_config.items()}
 
 
 def collate_single(batch):
@@ -47,7 +51,7 @@ class PyLModel(pl.LightningModule):
             domain_bounds=config_training["dataset_configs"]["domain_bounds"],
             cylinder_geometry=config_training["dataset_configs"]["cylinder_geometry"],
             **config_training["model_architecture_hyperparameters"],
-            **config_training.get("exploratory_variables", {}),
+            **config_exp["exploratory_variables"],
         )
         self.lambda_physics = config_training["loss_weights"]["lambda_physics"]
         self.lambda_bc = config_training["loss_weights"]["lambda_bc"]
@@ -55,7 +59,7 @@ class PyLModel(pl.LightningModule):
         self.lambda_data = config_training["loss_weights"]["lambda_data"]
         self.nu = config_training["dataset_configs"]["nu"]
 
-        exp_vars = config_training.get("exploratory_variables", {})
+        exp_vars = config_exp["exploratory_variables"]
         self.use_causal_weighting = exp_vars.get("use_causal_weighting", False)
         self.causal_eps = exp_vars.get("causal_eps", 1.0)
         self.num_causal_bins = exp_vars.get("num_causal_bins", 20)

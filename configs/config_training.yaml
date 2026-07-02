@@ -39,28 +39,13 @@ loss_weights:
     lambda_physics: 3.0
     lambda_bc: 5.0
     lambda_ic: 3.0
-    lambda_data: 3.0
+    lambda_data: 2.0
 
 model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
   value:
     hidden_layers: 6
     hidden_width: 128
-
-exploratory_variables:
-  desc: Feature flags for architectural experiments
-  value:
-    # Fourier Features
-    use_fourier_features: true
-    num_fourier_features: 64
-    sigma_spatial: 2.0
-    sigma_time: 1.0
-    # Causal Weighting
-    use_causal_weighting: true
-    causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
-    num_causal_bins: 20 
-    # Hard Boundary Conditions
-    use_hard_bc_cylinder: false 
 
 experiment_details:
   desc: Experiment Details
