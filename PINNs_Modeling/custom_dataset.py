@@ -65,21 +65,18 @@ class Cylinder2DDataset(torch.utils.data.Dataset):
             self.dataset_df = pd.read_parquet(ground_truth_dataset_path)
 
         # Sparse data supervision
-        if num_data_points > 0:
-            df = pd.read_parquet(ground_truth_dataset_path)
-            rows = df[["x", "y", "t", "Ux", "Uy", "p", "test_point_id"]].sample(
-                n=num_data_points, random_state=42
-            )
-            self.supervision_points = (
-                torch.tensor(rows["x"].values, dtype=torch.float32),
-                torch.tensor(rows["y"].values, dtype=torch.float32),
-                torch.tensor(rows["t"].values, dtype=torch.float32),
-                torch.tensor(rows["Ux"].values, dtype=torch.float32),
-                torch.tensor(rows["Uy"].values, dtype=torch.float32),
-                torch.tensor(rows["p"].values, dtype=torch.float32),
-            )
-        else:
-            self.supervision_points = None
+        df = pd.read_parquet(ground_truth_dataset_path)
+        rows = df[["x", "y", "t", "Ux", "Uy", "p", "test_point_id"]].sample(
+            n=num_data_points, random_state=42
+        )
+        self.supervision_points = (
+            torch.tensor(rows["x"].values, dtype=torch.float32),
+            torch.tensor(rows["y"].values, dtype=torch.float32),
+            torch.tensor(rows["t"].values, dtype=torch.float32),
+            torch.tensor(rows["Ux"].values, dtype=torch.float32),
+            torch.tensor(rows["Uy"].values, dtype=torch.float32),
+            torch.tensor(rows["p"].values, dtype=torch.float32),
+        )
 
     def __len__(self):
         if self.use_ground_truth_dataset:
