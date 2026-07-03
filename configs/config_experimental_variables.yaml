@@ -3,13 +3,13 @@ exploratory_variables:
   value:
   
     # (FF) Fourier Features
-    use_fourier_features: true
+    use_fourier_features: false
     num_fourier_features: 64
     sigma_spatial: 2.0
     sigma_time: 1.0
 
     # (CW) Causal Weighting
-    use_causal_weighting: false
+    use_causal_weighting: true
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
     num_causal_bins: 20 
 
