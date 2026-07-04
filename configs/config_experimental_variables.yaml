@@ -9,12 +9,12 @@ exploratory_variables:
     sigma_time: 1.0
 
     # (CW) Causal Weighting
-    use_causal_weighting: true
+    use_causal_weighting: false
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
     num_causal_bins: 20 
 
     # (HBC) Hard Boundary Conditions
-    use_hard_bc_cylinder: false
+    use_hard_bc_cylinder: true
 
     # (ACT) Activation function: tanh when false, SIREN when true
     use_siren: false
