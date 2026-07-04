@@ -9,7 +9,7 @@ dataset_configs:
     num_bc_points: 800
     num_noslip_points: 800
     num_ic_points: 800
-    num_data_points: 40000
+    num_data_points: 80000
     U_mean: 1.0
     domain_bounds:
       x_min: 0.0
@@ -51,7 +51,7 @@ experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_withSup_FF_CW"
+    experiment_name: "re100_withSup_FF_CW_2pct"
     use_wandb: True
 
 wandb_config:
