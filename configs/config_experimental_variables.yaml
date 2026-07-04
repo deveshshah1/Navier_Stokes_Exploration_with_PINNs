@@ -3,7 +3,7 @@ exploratory_variables:
   value:
   
     # (FF) Fourier Features
-    use_fourier_features: false
+    use_fourier_features: true
     num_fourier_features: 64
     sigma_spatial: 2.0
     sigma_time: 1.0
