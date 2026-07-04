@@ -4,6 +4,15 @@ import torch.nn as nn
 import math
 
 
+class Sine(nn.Module):
+    def __init__(self, omega: float = 1.0):
+        super().__init__()
+        self.omega = omega
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.sin(self.omega * x)
+
+
 class FourierFeatureEncoder(nn.Module):
     """
     Maps input coordinates through random Fourier features to combat spectral bias.
@@ -44,6 +53,8 @@ class BaselineModel(nn.Module):
         sigma_time=5.0,
         use_hard_bc_cylinder=False,
         cylinder_geometry={"cx": 0.2, "cy": 0.2, "r": 0.05},
+        use_siren=False,
+        siren_omega_0=30.0,
         **kwargs,
     ):
         super().__init__()
@@ -54,6 +65,8 @@ class BaselineModel(nn.Module):
 
         self.use_fourier_features = use_fourier_features
         self.use_hard_bc_cylinder = use_hard_bc_cylinder
+        self.use_siren = use_siren
+        self.siren_omega_0 = siren_omega_0
         if use_hard_bc_cylinder:
             self.register_buffer("cyl_cx", torch.tensor(cylinder_geometry["cx"], dtype=torch.float32))
             self.register_buffer("cyl_cy", torch.tensor(cylinder_geometry["cy"], dtype=torch.float32))
@@ -68,10 +81,17 @@ class BaselineModel(nn.Module):
         else:
             input_dim = 3
 
-        layers = [nn.Linear(input_dim, hidden_width), nn.Tanh()]
+        if self.use_siren:
+            activation_first = Sine(omega=siren_omega_0)
+            activation_hidden = Sine(omega=1.0)
+        else:
+            activation_first = nn.Tanh()
+            activation_hidden = nn.Tanh()
+        
+        layers = [nn.Linear(input_dim, hidden_width), activation_first]
         for _ in range(hidden_layers - 1):
             layers.append(nn.Linear(hidden_width, hidden_width))
-            layers.append(nn.Tanh())
+            layers.append(activation_hidden)
         layers.append(nn.Linear(hidden_width, 3))
 
         self.net = nn.Sequential(*layers)
@@ -102,11 +122,27 @@ class BaselineModel(nn.Module):
         return x_norm, y_norm, t_norm
 
     def _init_weights(self):
-        for m in self.net:
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None:
+        if self.use_siren:
+            is_first = True
+            for m in self.net:
+                if isinstance(m, nn.Linear):
+                    fan_in = m.weight.shape[1]
+                    if is_first:
+                        # First layer: uniform(-1/fan_in, 1/fan_in), scaled by omega_0
+                        bound = 1.0 / fan_in
+                        nn.init.uniform_(m.weight, -bound, bound)
+                        is_first = False
+                    else:
+                        # Hidden layers: uniform(-sqrt(6/fan_in), sqrt(6/fan_in))
+                        bound = math.sqrt(6.0 / fan_in)
+                        nn.init.uniform_(m.weight, -bound, bound)
                     nn.init.zeros_(m.bias)
+        else:
+            for m in self.net:
+                if isinstance(m, nn.Linear):
+                    nn.init.xavier_uniform_(m.weight)
+                    if m.bias is not None:
+                        nn.init.zeros_(m.bias)
 
     def forward(self, x, y, t):
         x_norm, y_norm, t_norm = self._normalize(x, y, t)

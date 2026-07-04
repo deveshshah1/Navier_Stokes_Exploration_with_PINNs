@@ -14,4 +14,8 @@ exploratory_variables:
     num_causal_bins: 20 
 
     # (HBC) Hard Boundary Conditions
-    use_hard_bc_cylinder: false 
+    use_hard_bc_cylinder: false
+
+    # (ACT) Activation function: tanh when false, SIREN when true
+    use_siren: false
+    siren_omega_0: 30.0  # first-layer frequency scale for SIREN
