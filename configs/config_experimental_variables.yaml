@@ -9,7 +9,7 @@ exploratory_variables:
     sigma_time: 1.0
 
     # (CW) Causal Weighting
-    use_causal_weighting: true
+    use_causal_weighting: false
     causal_eps: 1.0        # Higher = stricter causality; 0 ≈ uniform weighting, ~10 = near-sequential
     num_causal_bins: 20 
 
@@ -17,8 +17,8 @@ exploratory_variables:
     use_hard_bc_cylinder: false
 
     # (ACT) Activation function: tanh when false, SIREN when true
-    use_siren: true
+    use_siren: false
     siren_omega_0: 30.0  # first-layer frequency scale for SIREN
 
     # (SA) Self-Adaptive loss weights
-    use_sa_pinn: false
+    use_sa_pinn: true
