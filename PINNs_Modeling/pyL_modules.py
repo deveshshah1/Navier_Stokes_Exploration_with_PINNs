@@ -288,6 +288,10 @@ class PyLModel(pl.LightningModule):
                 if p.grad is not None:
                     p.grad.neg_()
             opt_lam.step()
+            # Clamp log-lambdas: keeps effective lambdas in [e^-3, e^5] ≈ [0.05, 148]
+            with torch.no_grad():
+                for p in [self.log_lambda_physics, self.log_lambda_bc, self.log_lambda_ic, self.log_lambda_data]:
+                    p.clamp_(-3.0, 5.0)
 
         return loss
 
@@ -325,7 +329,7 @@ class PyLModel(pl.LightningModule):
         if self.use_sa_pinn:
             opt_lam = torch.optim.Adam(
                 [self.log_lambda_physics, self.log_lambda_bc, self.log_lambda_ic, self.log_lambda_data],
-                lr=0.01,
+                lr=1e-3,
             )
             return (
                 [opt_net, opt_lam],
