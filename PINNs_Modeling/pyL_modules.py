@@ -327,10 +327,11 @@ class PyLModel(pl.LightningModule):
                 [self.log_lambda_physics, self.log_lambda_bc, self.log_lambda_ic, self.log_lambda_data],
                 lr=0.01,
             )
-            optimizer = [opt_net, opt_lam]
-        else:
-            optimizer = opt_net
-            
+            return (
+                [opt_net, opt_lam],
+                [{"scheduler": scheduler, "interval": "epoch", "frequency": 1}],
+            )
+
         return {
             "optimizer": opt_net,
             "lr_scheduler": {

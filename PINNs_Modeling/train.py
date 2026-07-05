@@ -68,6 +68,9 @@ def train(use_wandb=True):
     device_params = get_trainer_params()
     print(f"Device parameters: {device_params}")
 
+    # gradient_clip_val is incompatible with manual optimization (SA-PINN clips manually)
+    grad_clip = {} if model.use_sa_pinn else {"gradient_clip_val": 1.0}
+
     # Initialize Trainer
     trainer = pl.Trainer(
         accelerator=device_params["accelerator"],
@@ -76,10 +79,10 @@ def train(use_wandb=True):
         precision=32,
         max_epochs=config_training["training_hyperparameters"]["num_epochs"],
         callbacks=callbacks,
-        gradient_clip_val=1.0,
         # limit_train_batches=0.02,
         sync_batchnorm=True,
         logger=wandb_logger,
+        **grad_clip,
     )
 
     # Train the model
