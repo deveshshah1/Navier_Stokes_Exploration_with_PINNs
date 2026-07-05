@@ -19,3 +19,6 @@ exploratory_variables:
     # (ACT) Activation function: tanh when false, SIREN when true
     use_siren: true
     siren_omega_0: 30.0  # first-layer frequency scale for SIREN
+
+    # (SA) Self-Adaptive loss weights
+    use_sa_pinn: false

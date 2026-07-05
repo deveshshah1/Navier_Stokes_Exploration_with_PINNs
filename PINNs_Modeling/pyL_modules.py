@@ -1,3 +1,4 @@
+import math
 import yaml
 import wandb
 import torch
@@ -66,7 +67,25 @@ class PyLModel(pl.LightningModule):
         self.t_min = config_training["dataset_configs"]["domain_bounds"]["t_min"]
         self.t_max = config_training["dataset_configs"]["domain_bounds"]["t_max"]
 
+        self.use_sa_pinn = exp_vars.get("use_sa_pinn", False)
+        if self.use_sa_pinn:
+            self.automatic_optimization = False
+            self.log_lambda_physics = torch.nn.Parameter(torch.tensor(math.log(self.lambda_physics)))
+            self.log_lambda_bc = torch.nn.Parameter(torch.tensor(math.log(self.lambda_bc)))
+            self.log_lambda_ic = torch.nn.Parameter(torch.tensor(math.log(self.lambda_ic)))
+            self.log_lambda_data = torch.nn.Parameter(torch.tensor(math.log(self.lambda_data)))
+
         self.mse_loss = torch.nn.MSELoss()
+
+    def _get_lambdas(self):
+        if self.use_sa_pinn:
+            return (
+                self.log_lambda_physics.exp(),
+                self.log_lambda_bc.exp(),
+                self.log_lambda_ic.exp(),
+                self.log_lambda_data.exp(),
+            )
+        return self.lambda_physics, self.lambda_bc, self.lambda_ic, self.lambda_data
 
     def bc_loss(self, bc_points):
         # inlet (ui = Schäfer-Turek parabolic, vi = 0)
@@ -178,11 +197,12 @@ class PyLModel(pl.LightningModule):
         physics_loss, causal_weight_min = self.physics_loss(collocation_points)
         data_loss = self.data_loss(supervision_points)
 
+        lam_physics, lam_bc, lam_ic, lam_data = self._get_lambdas()
         loss = (
-            self.lambda_physics * physics_loss
-            + self.lambda_bc * bc_loss
-            + self.lambda_ic * ic_loss
-            + self.lambda_data * data_loss
+            lam_physics * physics_loss
+            + lam_bc * bc_loss
+            + lam_ic * ic_loss
+            + lam_data * data_loss
         )
 
         self.log(
@@ -208,6 +228,12 @@ class PyLModel(pl.LightningModule):
         log_loss("train/outlet_loss", outlet_loss)
         log_loss("train/noslip_loss", noslip_loss)
         log_loss("train/data_loss", data_loss)
+
+        if self.use_sa_pinn:
+            log_loss("train/lambda_physics", lam_physics)
+            log_loss("train/lambda_bc", lam_bc)
+            log_loss("train/lambda_ic", lam_ic)
+            log_loss("train/lambda_data", lam_data)
 
         # Log histograms of predictions and losses to W&B
         if self.wandb_logger is not None and batch_idx % 10 == 0:
@@ -251,7 +277,25 @@ class PyLModel(pl.LightningModule):
                 step=self.global_step,
             )
 
+        if self.use_sa_pinn:
+            opt_net, opt_lam = self.optimizers()
+            opt_net.zero_grad()
+            opt_lam.zero_grad()
+            self.manual_backward(loss)
+            self.clip_gradients(opt_net, gradient_clip_val=1.0, gradient_clip_algorithm="norm")
+            opt_net.step()
+            for p in [self.log_lambda_physics, self.log_lambda_bc, self.log_lambda_ic, self.log_lambda_data]:
+                if p.grad is not None:
+                    p.grad.neg_()
+            opt_lam.step()
+
         return loss
+
+    def on_train_epoch_end(self):
+        if self.use_sa_pinn:
+            sch = self.lr_schedulers()
+            if sch is not None:
+                sch.step()
 
     def predict_step(self, batch, batch_idx):
         # Get inputs
@@ -270,16 +314,25 @@ class PyLModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        opt_net = torch.optim.AdamW(
             self.model.parameters(),
             lr=config_training["training_hyperparameters"]["learning_rate"],
         )
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
+            opt_net,
             T_max=config_training["training_hyperparameters"]["num_epochs"],
         )
+        if self.use_sa_pinn:
+            opt_lam = torch.optim.Adam(
+                [self.log_lambda_physics, self.log_lambda_bc, self.log_lambda_ic, self.log_lambda_data],
+                lr=0.01,
+            )
+            optimizer = [opt_net, opt_lam]
+        else:
+            optimizer = opt_net
+            
         return {
-            "optimizer": optimizer,
+            "optimizer": opt_net,
             "lr_scheduler": {
                 "scheduler": scheduler,
                 "interval": "epoch",
