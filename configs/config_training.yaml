@@ -51,7 +51,7 @@ experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_withSup_SA"
+    experiment_name: "re100_withSup_ACT_CW_FINAL"
     use_wandb: True
 
 wandb_config:
