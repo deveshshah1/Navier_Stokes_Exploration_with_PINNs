@@ -17,7 +17,7 @@ with open("./configs/config_training.yaml", "r") as file:
     config_training = {k: v["value"] for k, v in config_training.items()}
 
 
-def train(use_wandb=True):
+def train(use_wandb=True, resume_id=None, ckpt_path=None):
     # Create required directories
     model_dir = os.path.join(
         config_training["experiment_details"]["model_dir"],
@@ -30,6 +30,9 @@ def train(use_wandb=True):
     if use_wandb:
         wandb_config = config_training["wandb_config"]
         wandb_config["notes"] = config_training["experiment_details"]["experiment_name"]
+        if resume_id:
+            wandb_config["id"] = resume_id
+            wandb_config["resume"] = "must"
         wandb_logger = WandbLogger(**wandb_config)
         model_name = wandb_logger.experiment.name
         wandb_logger.experiment.log_code(
@@ -86,7 +89,7 @@ def train(use_wandb=True):
     )
 
     # Train the model
-    trainer.fit(model, dataset)
+    trainer.fit(model, dataset, ckpt_path=ckpt_path)
 
     # Finish the experiment
     if use_wandb:
@@ -119,4 +122,15 @@ def define_all_callbacks(model_dir, model_name):
 
 
 if __name__ == "__main__":
-    train(use_wandb=config_training["experiment_details"]["use_wandb"])
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resume_id", default=None, help="wandb run id to resume logging into")
+    parser.add_argument("--ckpt_path", default=None, help="checkpoint path to resume training from")
+    args = parser.parse_args()
+
+    train(
+        use_wandb=config_training["experiment_details"]["use_wandb"],
+        resume_id=args.resume_id,
+        ckpt_path=args.ckpt_path,
+    )
