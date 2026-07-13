@@ -104,8 +104,15 @@ def define_all_callbacks(model_dir, model_name):
         verbose=True,
     )
 
+    checkpoint_callback_2 = ModelCheckpoint(
+        dirpath=model_dir,
+        filename=f"{model_name}_latest",
+        verbose=True,
+    )
+
     callbacks = [
         checkpoint_callback_1,
+        checkpoint_callback_2,
     ]
 
     return callbacks
