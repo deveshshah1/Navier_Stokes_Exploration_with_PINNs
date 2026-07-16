@@ -22,3 +22,10 @@ exploratory_variables:
 
     # (SA) Self-Adaptive loss weights
     use_sa_pinn: false
+
+    # (LBFGS) L-BFGS fine-tuning after Adam convergence
+    use_lbfgs: false
+    lbfgs_lr: 1.0
+    lbfgs_max_iter: 20
+    lbfgs_history_size: 100
+    lbfgs_pretrained_ckpt: null  # path to Adam checkpoint to fine-tune from

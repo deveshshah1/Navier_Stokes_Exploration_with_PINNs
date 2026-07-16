@@ -75,6 +75,15 @@ class PyLModel(pl.LightningModule):
             self.log_lambda_ic = torch.nn.Parameter(torch.tensor(math.log(self.lambda_ic)))
             self.log_lambda_data = torch.nn.Parameter(torch.tensor(math.log(self.lambda_data)))
 
+        self.use_lbfgs = exp_vars.get("use_lbfgs", False)
+        if self.use_lbfgs:
+            self.automatic_optimization = False
+            ckpt_path = exp_vars.get("lbfgs_pretrained_ckpt")
+            if ckpt_path:
+                ckpt = torch.load(ckpt_path, map_location="cpu")
+                self.model.load_state_dict(ckpt["state_dict"], strict=False)
+                print(f"[L-BFGS] Loaded pretrained weights from {ckpt_path}")
+
         self.mse_loss = torch.nn.MSELoss()
 
     def _get_lambdas(self):
@@ -185,73 +194,82 @@ class PyLModel(pl.LightningModule):
             + self.mse_loss(p_pred, p_true)
         )
 
-    def training_step(self, batch, batch_idx):
-        collocation_points = batch["collocation"]
-        bc_points = batch["boundary"]
-        ic_points = batch["ic"]
-        supervision_points = batch["supervision"]
-
-        inlet_loss, outlet_loss, noslip_loss = self.bc_loss(bc_points)
+    def _compute_loss(self, batch):
+        inlet_loss, outlet_loss, noslip_loss = self.bc_loss(batch["boundary"])
         bc_loss = inlet_loss + outlet_loss + noslip_loss
-        ic_loss = self.ic_loss(ic_points)
-        physics_loss, causal_weight_min = self.physics_loss(collocation_points)
-        data_loss = self.data_loss(supervision_points)
-
+        ic_loss = self.ic_loss(batch["ic"])
+        physics_loss, causal_weight_min = self.physics_loss(batch["collocation"])
+        data_loss = self.data_loss(batch["supervision"])
         lam_physics, lam_bc, lam_ic, lam_data = self._get_lambdas()
-        loss = (
+        total = (
             lam_physics * physics_loss
             + lam_bc * bc_loss
             + lam_ic * ic_loss
             + lam_data * data_loss
         )
-
-        self.log(
-            "train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=1
+        return total, dict(
+            physics_loss=physics_loss, bc_loss=bc_loss, ic_loss=ic_loss,
+            data_loss=data_loss, inlet_loss=inlet_loss, outlet_loss=outlet_loss,
+            noslip_loss=noslip_loss, causal_weight_min=causal_weight_min,
         )
 
-        def log_loss(name, value):
-            self.log(
-                name,
-                value,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                batch_size=1,
-            )
+    def _log_losses(self, loss, comps):
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=1)
 
-        log_loss("train/physics_loss", physics_loss)
-        if causal_weight_min is not None:
-            log_loss("train/causal_weight_min", causal_weight_min)
-        log_loss("train/bc_loss", bc_loss)
-        log_loss("train/ic_loss", ic_loss)
-        log_loss("train/inlet_loss", inlet_loss)
-        log_loss("train/outlet_loss", outlet_loss)
-        log_loss("train/noslip_loss", noslip_loss)
-        log_loss("train/data_loss", data_loss)
+        def log_loss(name, value):
+            self.log(name, value, on_step=True, on_epoch=True, prog_bar=False, batch_size=1)
+
+        log_loss("train/physics_loss", comps["physics_loss"])
+        if comps["causal_weight_min"] is not None:
+            log_loss("train/causal_weight_min", comps["causal_weight_min"])
+        log_loss("train/bc_loss", comps["bc_loss"])
+        log_loss("train/ic_loss", comps["ic_loss"])
+        log_loss("train/inlet_loss", comps["inlet_loss"])
+        log_loss("train/outlet_loss", comps["outlet_loss"])
+        log_loss("train/noslip_loss", comps["noslip_loss"])
+        log_loss("train/data_loss", comps["data_loss"])
+
+    def _training_step_lbfgs(self, batch):
+        opt = self.optimizers()
+        comps = {}
+
+        def closure():
+            opt.zero_grad()
+            loss, c = self._compute_loss(batch)
+            comps.update(c)
+            comps["loss"] = loss
+            self.manual_backward(loss)
+            return loss
+
+        opt.step(closure)
+        loss = comps["loss"]
+        self._log_losses(loss, comps)
+        return loss
+
+    def _training_step_standard(self, batch, batch_idx):
+        loss, comps = self._compute_loss(batch)
+        self._log_losses(loss, comps)
 
         if self.use_sa_pinn:
+            lam_physics, lam_bc, lam_ic, lam_data = self._get_lambdas()
+
+            def log_loss(name, value):
+                self.log(name, value, on_step=True, on_epoch=True, prog_bar=False, batch_size=1)
+
             log_loss("train/lambda_physics", lam_physics)
             log_loss("train/lambda_bc", lam_bc)
             log_loss("train/lambda_ic", lam_ic)
             log_loss("train/lambda_data", lam_data)
 
-        # Log histograms of predictions and losses to W&B
         if self.wandb_logger is not None and batch_idx % 10 == 0:
-            x, y, t = collocation_points
+            x, y, t = batch["collocation"]
             with torch.no_grad():
                 u_pred, v_pred, p_pred = self.model(x, y, t)
-
             self.wandb_logger.experiment.log(
                 {
-                    "distributions/u_pred": wandb.Histogram(
-                        u_pred.detach().cpu().numpy()
-                    ),
-                    "distributions/v_pred": wandb.Histogram(
-                        v_pred.detach().cpu().numpy()
-                    ),
-                    "distributions/p_pred": wandb.Histogram(
-                        p_pred.detach().cpu().numpy()
-                    ),
+                    "distributions/u_pred": wandb.Histogram(u_pred.detach().cpu().numpy()),
+                    "distributions/v_pred": wandb.Histogram(v_pred.detach().cpu().numpy()),
+                    "distributions/p_pred": wandb.Histogram(p_pred.detach().cpu().numpy()),
                     "distributions/u_mean": u_pred.mean().item(),
                     "distributions/u_std": u_pred.std().item(),
                     "distributions/v_mean": v_pred.mean().item(),
@@ -264,11 +282,10 @@ class PyLModel(pl.LightningModule):
                 },
                 step=self.global_step,
             )
-
-            xi, yi, ti = bc_points["inlet"]
+            xi, yi, ti = batch["boundary"]["inlet"]
             with torch.no_grad():
                 ui_pred, _, _ = self.model(xi, yi, ti)
-            ui_true = bc_points["inlet_u"]
+            ui_true = batch["boundary"]["inlet_u"]
             self.wandb_logger.experiment.log(
                 {
                     "distributions/inlet_u_pred_mean": ui_pred.mean().item(),
@@ -295,6 +312,11 @@ class PyLModel(pl.LightningModule):
 
         return loss
 
+    def training_step(self, batch, batch_idx):
+        if self.use_lbfgs:
+            return self._training_step_lbfgs(batch)
+        return self._training_step_standard(batch, batch_idx)
+
     def on_train_epoch_end(self):
         if self.use_sa_pinn:
             sch = self.lr_schedulers()
@@ -318,6 +340,16 @@ class PyLModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
+        if self.use_lbfgs:
+            ev = config_exp["exploratory_variables"]
+            return torch.optim.LBFGS(
+                self.model.parameters(),
+                lr=ev.get("lbfgs_lr", 1.0),
+                max_iter=ev.get("lbfgs_max_iter", 20),
+                history_size=ev.get("lbfgs_history_size", 100),
+                line_search_fn="strong_wolfe",
+            )
+
         opt_net = torch.optim.AdamW(
             self.model.parameters(),
             lr=config_training["training_hyperparameters"]["learning_rate"],

@@ -71,8 +71,8 @@ def train(use_wandb=True, resume_id=None, ckpt_path=None):
     device_params = get_trainer_params()
     print(f"Device parameters: {device_params}")
 
-    # gradient_clip_val is incompatible with manual optimization (SA-PINN clips manually)
-    grad_clip = {} if model.use_sa_pinn else {"gradient_clip_val": 1.0}
+    # gradient_clip_val is incompatible with manual optimization (SA-PINN and L-BFGS clip manually)
+    grad_clip = {} if (model.use_sa_pinn or model.use_lbfgs) else {"gradient_clip_val": 1.0}
 
     # Initialize Trainer
     trainer = pl.Trainer(
