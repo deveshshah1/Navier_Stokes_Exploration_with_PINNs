@@ -81,7 +81,12 @@ class PyLModel(pl.LightningModule):
             ckpt_path = exp_vars.get("lbfgs_pretrained_ckpt")
             if ckpt_path:
                 ckpt = torch.load(ckpt_path, map_location="cpu")
-                self.model.load_state_dict(ckpt["state_dict"], strict=False)
+                state_dict = {
+                    k[len("model."):]: v
+                    for k, v in ckpt["state_dict"].items()
+                    if k.startswith("model.")
+                }
+                self.model.load_state_dict(state_dict, strict=True)
                 print(f"[L-BFGS] Loaded pretrained weights from {ckpt_path}")
 
         self.mse_loss = torch.nn.MSELoss()
