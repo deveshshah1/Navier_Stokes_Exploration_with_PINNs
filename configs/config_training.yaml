@@ -45,13 +45,13 @@ model_architecture_hyperparameters:
   desc: Model Architecture Hyperparameters
   value:
     hidden_layers: 6
-    hidden_width: 128
+    hidden_width: 256
 
 experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_withSup_ACT_CW_FINAL"
+    experiment_name: "re100_withSup_ACT_CW_deeperModel"
     use_wandb: True
 
 wandb_config:
