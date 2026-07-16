@@ -30,7 +30,7 @@ training_hyperparameters:
   desc: Training Hyperparameters
   value:
     batch_size: 1
-    num_epochs: 4000
+    num_epochs: 200
     learning_rate: 0.002
 
 loss_weights:
@@ -51,7 +51,7 @@ experiment_details:
   desc: Experiment Details
   value:
     model_dir: "./trained_models/"
-    experiment_name: "re100_withSup_ACT_CW_deeperModel_FULL"
+    experiment_name: "re100_withSup_ACT_CW_deeperModel_LBFGS"
     use_wandb: True
 
 wandb_config:

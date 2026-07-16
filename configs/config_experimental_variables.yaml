@@ -24,8 +24,8 @@ exploratory_variables:
     use_sa_pinn: false
 
     # (LBFGS) L-BFGS fine-tuning after Adam convergence
-    use_lbfgs: false
+    use_lbfgs: true
     lbfgs_lr: 1.0
     lbfgs_max_iter: 20
     lbfgs_history_size: 100
-    lbfgs_pretrained_ckpt: null  # path to Adam checkpoint to fine-tune from
+    lbfgs_pretrained_ckpt: "./trained_models/re100_withSup_ACT_CW_deeperModel_FULL/checkpoints/good-frost-63_best_train_loss.ckpt"
